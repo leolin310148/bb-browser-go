@@ -12,6 +12,7 @@ import (
 	"github.com/leolin310148/bb-browser-go/internal/client"
 	"github.com/leolin310148/bb-browser-go/internal/daemon"
 	"github.com/leolin310148/bb-browser-go/internal/jq"
+	mcpserver "github.com/leolin310148/bb-browser-go/internal/mcp"
 	"github.com/leolin310148/bb-browser-go/internal/protocol"
 	"github.com/leolin310148/bb-browser-go/internal/site"
 )
@@ -374,6 +375,10 @@ func main() {
 			fatal("Usage: bb-browser fetch <url>")
 		}
 		handleFetch(cmdArgs, jsonOutput, globalTabID, args)
+
+	// --- MCP ---
+	case "mcp":
+		mcpserver.Run(version)
 
 	// --- Daemon ---
 	case "daemon":

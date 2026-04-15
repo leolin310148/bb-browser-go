@@ -91,6 +91,47 @@ When you run any command, `bb-browser`:
 
 The daemon runs in the background and auto-discovers your browser. You don't need to manage it manually.
 
+## MCP Server
+
+`bb-browser` includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server, letting AI assistants like Claude control your browser directly.
+
+### Setup
+
+Start the MCP server:
+
+```bash
+bb-browser mcp
+```
+
+This runs an MCP server over stdio. To use it with an MCP client, add it to your configuration:
+
+Add to your MCP client configuration (e.g. `.claude/settings.json` for Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "bb-browser": {
+      "command": "bb-browser",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### Available Tools
+
+The MCP server exposes 26 tools:
+
+| Category | Tools |
+|----------|-------|
+| **Navigation** | `browser_navigate`, `browser_back`, `browser_forward`, `browser_refresh`, `browser_close` |
+| **Interaction** | `browser_click`, `browser_hover`, `browser_fill`, `browser_type`, `browser_check`, `browser_uncheck`, `browser_select`, `browser_press`, `browser_scroll` |
+| **Observation** | `browser_snapshot`, `browser_screenshot`, `browser_get`, `browser_eval`, `browser_wait` |
+| **Tab Management** | `browser_tab_list`, `browser_tab_new`, `browser_tab_select`, `browser_tab_close` |
+| **Diagnostics** | `browser_network`, `browser_console`, `browser_errors` |
+
+The workflow mirrors the CLI: call `browser_snapshot` to see the page structure with element refs, then use those refs with interaction tools like `browser_click` or `browser_fill`. Screenshots are returned as inline base64 PNG images.
+
 ## Quick Start
 
 ```bash
@@ -590,7 +631,9 @@ bb-browser console --filter "warning"
 
 ### AI Agent Integration
 
-`bb-browser` is designed to work well with AI agents (like Claude, GPT, etc.) that need to interact with web pages. The snapshot command produces an accessibility tree that LLMs can understand:
+`bb-browser` is designed to work well with AI agents. The recommended approach is the built-in **MCP server** (see [MCP Server](#mcp-server) above), which lets AI assistants call browser tools directly without shell commands.
+
+For agents that use shell-based tool calling, the CLI works just as well:
 
 ```bash
 # The agent runs snapshot to "see" the page
