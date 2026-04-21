@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -69,6 +71,16 @@ func (s *Server) Run() error {
 		Handler: corsMiddleware(root),
 	}
 
+	// Bind the listener BEFORE writing daemon.json, so a bind failure
+	// doesn't clobber a live daemon's state.
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		if isAddrInUse(err) {
+			return fmt.Errorf("a daemon may already be running on %s (try `bb-browser daemon status` or `bb-browser daemon shutdown`): %w", addr, err)
+		}
+		return err
+	}
+
 	s.startTime = time.Now()
 
 	// Start CDP connection async (two-phase startup)
@@ -78,7 +90,7 @@ func (s *Server) Run() error {
 		}
 	}()
 
-	// Write daemon.json
+	// Write daemon.json only after the listener is held.
 	info := protocol.DaemonInfo{
 		PID:   os.Getpid(),
 		Host:  s.opts.Host,
@@ -93,10 +105,10 @@ func (s *Server) Run() error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
+	fmt.Fprintf(os.Stderr, "bb-browser daemon listening on %s\n", addr)
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(os.Stderr, "bb-browser daemon listening on %s\n", addr)
-		if err := s.httpSrv.ListenAndServe(); err != http.ErrServerClosed {
+		if err := s.httpSrv.Serve(ln); err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()
@@ -255,6 +267,15 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 		s.shutdown()
 		os.Exit(0)
 	}()
+}
+
+func isAddrInUse(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "address already in use") ||
+		strings.Contains(s, "only one usage of each socket address")
 }
 
 func sendJSON(w http.ResponseWriter, status int, data interface{}) {

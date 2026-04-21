@@ -634,6 +634,17 @@ func startDaemonForeground(rawArgs []string) {
 		}
 	}
 
+	// If a healthy daemon is already running, don't try to bind (which would
+	// clobber daemon.json and then fail with "address already in use").
+	if existing, err := client.ReadDaemonJSON(); err == nil && existing != nil && existing.Port == port && existing.Host == host {
+		if client.IsProcessAlive(existing.PID) {
+			if _, err := client.GetDaemonStatus(); err == nil {
+				fmt.Fprintf(os.Stderr, "bb-browser daemon already running on %s:%d (pid %d)\n", existing.Host, existing.Port, existing.PID)
+				return
+			}
+		}
+	}
+
 	// Generate token
 	tokenBytes := make([]byte, 16)
 	rand.Read(tokenBytes)
