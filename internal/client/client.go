@@ -23,6 +23,9 @@ import (
 var (
 	cachedInfo  *protocol.DaemonInfo
 	daemonReady bool
+
+	// discoverCDPPort is indirected so tests can bypass real CDP discovery.
+	discoverCDPPort = DiscoverCDPPort
 )
 
 // ReadDaemonJSON reads ~/.bb-browser/daemon.json.
@@ -132,7 +135,7 @@ func EnsureDaemon() error {
 	}
 
 	// Discover CDP port
-	cdpInfo, err := DiscoverCDPPort()
+	cdpInfo, err := discoverCDPPort()
 	if err != nil {
 		return fmt.Errorf("bb-browser: Cannot find a Chromium-based browser.\n\n" +
 			"Please do one of the following:\n" +

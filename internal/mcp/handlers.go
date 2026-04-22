@@ -18,6 +18,9 @@ func newID() string {
 	return hex.EncodeToString(b)
 }
 
+// sendCommand is a variable so tests can stub out the daemon round-trip.
+var sendCommand = client.SendCommand
+
 func normalizeRef(ref string) string {
 	return strings.TrimPrefix(ref, "@")
 }
@@ -44,7 +47,7 @@ func handleNavigate(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRe
 		req.New = true
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -54,7 +57,7 @@ func handleNavigate(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRe
 func handleBack(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionBack}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -64,7 +67,7 @@ func handleBack(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult
 func handleForward(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionForward}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -74,7 +77,7 @@ func handleForward(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRes
 func handleRefresh(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionRefresh}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -84,7 +87,7 @@ func handleRefresh(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRes
 func handleClose(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionClose}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -100,7 +103,7 @@ func handleClick(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResul
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionClick, Ref: normalizeRef(ref)}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -114,7 +117,7 @@ func handleHover(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResul
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionHover, Ref: normalizeRef(ref)}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -132,7 +135,7 @@ func handleFill(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionFill, Ref: normalizeRef(ref), Text: text}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -150,7 +153,7 @@ func handleType(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionType_, Ref: normalizeRef(ref), Text: text}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -164,7 +167,7 @@ func handleCheck(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResul
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionCheck, Ref: normalizeRef(ref)}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -178,7 +181,7 @@ func handleUncheck(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRes
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionUncheck, Ref: normalizeRef(ref)}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -196,7 +199,7 @@ func handleSelect(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResu
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionSelect, Ref: normalizeRef(ref), Value: value}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -210,7 +213,7 @@ func handlePress(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResul
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionPress, Key: key}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -227,7 +230,7 @@ func handleScroll(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResu
 		Pixels:    intPtr(pixels),
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -248,7 +251,7 @@ func handleSnapshot(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRe
 		req.MaxDepth = intPtr(depth)
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -258,7 +261,7 @@ func handleSnapshot(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRe
 func handleScreenshot(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionScreenshot}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -275,7 +278,7 @@ func handleGet(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult,
 		req.Ref = normalizeRef(ref)
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -289,7 +292,7 @@ func handleEval(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult
 	}
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionEval, Script: script}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -299,7 +302,7 @@ func handleEval(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult
 func handleWait(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ms := r.GetInt("ms", 1000)
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionWait, Ms: intPtr(ms)}
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -310,7 +313,7 @@ func handleWait(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult
 
 func handleTabList(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	req := &protocol.Request{ID: newID(), Action: protocol.ActionTabList}
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -322,7 +325,7 @@ func handleTabNew(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResu
 	if url := r.GetString("url", ""); url != "" {
 		req.URL = url
 	}
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -341,7 +344,7 @@ func handleTabSelect(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolR
 	if idx := r.GetInt("index", -1); idx >= 0 {
 		req.Index = intPtr(idx)
 	}
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -356,7 +359,7 @@ func handleTabClose(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRe
 	if idx := r.GetInt("index", -1); idx >= 0 {
 		req.Index = intPtr(idx)
 	}
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -377,7 +380,7 @@ func handleNetwork(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRes
 		Status:         r.GetString("status", ""),
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -399,7 +402,7 @@ func handleConsole(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRes
 		Filter:         r.GetString("filter", ""),
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}
@@ -421,7 +424,7 @@ func handleErrors(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResu
 		Filter:        r.GetString("filter", ""),
 	}
 	setTab(req, r)
-	resp, err := client.SendCommand(req)
+	resp, err := sendCommand(req)
 	if e := checkError(resp, err); e != nil {
 		return e, nil
 	}

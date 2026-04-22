@@ -26,7 +26,20 @@ jobs:
         run: go build -v ./...
 
       - name: Test
-        run: go test -v ./...
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Coverage summary
+        run: |
+          go tool cover -func=coverage.out | tail -1
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/,"",$NF); print $NF}')
+          echo "Total coverage: ${total}%"
+          awk -v t="$total" 'BEGIN { if (t+0 < 70) { print "Coverage " t "% is below 70% floor"; exit 1 } }'
+
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-profile
+          path: coverage.out
 
   lint:
     runs-on: ubuntu-latest

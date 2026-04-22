@@ -37,7 +37,7 @@ func applySegment(inputs []interface{}, expr string) []interface{} {
 
 	// select(...)
 	if strings.HasPrefix(expr, "select(") {
-		re := regexp.MustCompile(`^select\((.+?)\s*(==|!=|>|<|>=|<=)\s*(.+)\)$`)
+		re := regexp.MustCompile(`^select\((.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)\)$`)
 		matches := re.FindStringSubmatch(expr)
 		if matches == nil {
 			return inputs
