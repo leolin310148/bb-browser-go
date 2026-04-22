@@ -263,55 +263,7 @@ func canConnect(host string, port int) bool {
 	return resp.StatusCode == 200
 }
 
-func findBrowserExecutable() string {
-	switch runtime.GOOS {
-	case "darwin":
-		candidates := []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Google Chrome Dev.app/Contents/MacOS/Google Chrome Dev",
-			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-			"/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
-			"/Applications/Arc.app/Contents/MacOS/Arc",
-			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-		}
-		for _, c := range candidates {
-			if _, err := os.Stat(c); err == nil {
-				return c
-			}
-		}
-	case "linux":
-		candidates := []string{"google-chrome", "google-chrome-stable", "chromium-browser", "chromium"}
-		for _, c := range candidates {
-			if path, err := exec.LookPath(c); err == nil {
-				return path
-			}
-		}
-	case "windows":
-		localAppData := os.Getenv("LOCALAPPDATA")
-		candidates := []string{
-			`C:\Program Files\Google\Chrome\Application\chrome.exe`,
-			`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
-		}
-		if localAppData != "" {
-			candidates = append(candidates,
-				filepath.Join(localAppData, `Google\Chrome Dev\Application\chrome.exe`),
-				filepath.Join(localAppData, `Google\Chrome SxS\Application\chrome.exe`),
-			)
-		}
-		candidates = append(candidates,
-			`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
-			`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
-			`C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe`,
-		)
-		for _, c := range candidates {
-			if _, err := os.Stat(c); err == nil {
-				return c
-			}
-		}
-	}
-	return ""
-}
+// findBrowserExecutable is implemented per-platform in browser_*.go.
 
 func launchManagedBrowser(port int) (*CDPEndpoint, error) {
 	executable := findBrowserExecutable()
