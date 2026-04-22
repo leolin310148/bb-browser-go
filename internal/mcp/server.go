@@ -66,6 +66,11 @@ func Run(version string) {
 	s.AddTool(consoleTool, handleConsole)
 	s.AddTool(errorsTool, handleErrors)
 
+	// Site Adapters
+	s.AddTool(siteListTool, handleSiteList)
+	s.AddTool(siteInfoTool, handleSiteInfo)
+	s.AddTool(siteRunTool, handleSiteRun)
+
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "MCP server error: %v\n", err)
 		os.Exit(1)

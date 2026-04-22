@@ -60,6 +60,7 @@ func (s *Server) Run() error {
 	protectedMux.HandleFunc("/status", s.handleStatus)
 	protectedMux.HandleFunc("/shutdown", s.handleShutdown)
 	s.registerRESTRoutes(protectedMux)
+	s.registerSiteRoutes(protectedMux)
 
 	root := http.NewServeMux()
 	root.HandleFunc("/healthz", s.handleHealthz)

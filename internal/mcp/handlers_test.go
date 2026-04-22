@@ -7,8 +7,33 @@ import (
 	"testing"
 
 	"github.com/leolin310148/bb-browser-go/internal/protocol"
+	"github.com/leolin310148/bb-browser-go/internal/site"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+// stubSiteLister replaces siteLister for the duration of a test.
+func stubSiteLister(t *testing.T, fn func() []*site.SiteMeta) {
+	t.Helper()
+	orig := siteLister
+	siteLister = fn
+	t.Cleanup(func() { siteLister = orig })
+}
+
+// stubSiteFinder replaces siteFinder for the duration of a test.
+func stubSiteFinder(t *testing.T, fn func(string) *site.SiteMeta) {
+	t.Helper()
+	orig := siteFinder
+	siteFinder = fn
+	t.Cleanup(func() { siteFinder = orig })
+}
+
+// stubSiteBuilder replaces siteBuilder for the duration of a test.
+func stubSiteBuilder(t *testing.T, fn func(*site.SiteMeta, map[string]interface{}, string) (*protocol.Request, error)) {
+	t.Helper()
+	orig := siteBuilder
+	siteBuilder = fn
+	t.Cleanup(func() { siteBuilder = orig })
+}
 
 // stubSend swaps sendCommand for the duration of a test.
 func stubSend(t *testing.T, fn func(*protocol.Request) (*protocol.Response, error)) {
@@ -441,6 +466,162 @@ func TestHandleConsole(t *testing.T) {
 	res, _ = handleConsole(context.Background(), mkReq(map[string]any{"clear": true}))
 	if !strings.Contains(firstText(t, res), "cleared") {
 		t.Errorf("got %q", firstText(t, res))
+	}
+}
+
+// --- site adapter handlers ---
+
+func TestHandleSiteList_Empty(t *testing.T) {
+	stubSiteLister(t, func() []*site.SiteMeta { return nil })
+	res, _ := handleSiteList(context.Background(), mkReq(nil))
+	if res.IsError {
+		t.Fatalf("unexpected error: %v", res)
+	}
+	if !strings.Contains(firstText(t, res), "No site adapters") {
+		t.Errorf("got %q", firstText(t, res))
+	}
+}
+
+func TestHandleSiteList_WithAdapters(t *testing.T) {
+	stubSiteLister(t, func() []*site.SiteMeta {
+		return []*site.SiteMeta{
+			{Name: "twitter/search", Description: "search tweets", Domain: "twitter.com", Source: "community"},
+			{Name: "custom/one", Description: "local thing", Source: "local"},
+		}
+	})
+	res, _ := handleSiteList(context.Background(), mkReq(nil))
+	if res.IsError {
+		t.Fatalf("unexpected error")
+	}
+	got := firstText(t, res)
+	if !strings.Contains(got, "Site adapters (2)") {
+		t.Errorf("missing header: %q", got)
+	}
+	if !strings.Contains(got, "twitter/search") || !strings.Contains(got, "search tweets") {
+		t.Errorf("missing first adapter: %q", got)
+	}
+	if !strings.Contains(got, "[local]") || !strings.Contains(got, "[community]") {
+		t.Errorf("missing source tags: %q", got)
+	}
+}
+
+func TestHandleSiteInfo_Missing(t *testing.T) {
+	// missing name
+	res, _ := handleSiteInfo(context.Background(), mkReq(nil))
+	if !res.IsError {
+		t.Errorf("missing name should error")
+	}
+
+	// adapter not found
+	stubSiteFinder(t, func(string) *site.SiteMeta { return nil })
+	res, _ = handleSiteInfo(context.Background(), mkReq(map[string]any{"name": "nope"}))
+	if !res.IsError {
+		t.Errorf("missing adapter should error")
+	}
+	if !strings.Contains(firstText(t, res), "not found") {
+		t.Errorf("got %q", firstText(t, res))
+	}
+}
+
+func TestHandleSiteInfo_Success(t *testing.T) {
+	stubSiteFinder(t, func(name string) *site.SiteMeta {
+		if name != "twitter/search" {
+			return nil
+		}
+		return &site.SiteMeta{
+			Name: "twitter/search", Description: "search", Domain: "twitter.com",
+			Args: map[string]site.ArgDef{"query": {Required: true, Description: "q"}},
+		}
+	})
+	res, _ := handleSiteInfo(context.Background(), mkReq(map[string]any{"name": "twitter/search"}))
+	if res.IsError {
+		t.Fatalf("unexpected error: %v", res)
+	}
+	got := firstText(t, res)
+	if !strings.Contains(got, `"name": "twitter/search"`) || !strings.Contains(got, `"query"`) {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestHandleSiteRun_MissingName(t *testing.T) {
+	res, _ := handleSiteRun(context.Background(), mkReq(nil))
+	if !res.IsError {
+		t.Errorf("missing name should error")
+	}
+}
+
+func TestHandleSiteRun_NotFound(t *testing.T) {
+	stubSiteFinder(t, func(string) *site.SiteMeta { return nil })
+	res, _ := handleSiteRun(context.Background(), mkReq(map[string]any{"name": "nope"}))
+	if !res.IsError || !strings.Contains(firstText(t, res), "not found") {
+		t.Errorf("got %+v / %q", res, firstText(t, res))
+	}
+}
+
+func TestHandleSiteRun_BadArgs(t *testing.T) {
+	stubSiteFinder(t, func(string) *site.SiteMeta { return &site.SiteMeta{Name: "a"} })
+	res, _ := handleSiteRun(context.Background(), mkReq(map[string]any{"name": "a", "args": "string-not-object"}))
+	if !res.IsError || !strings.Contains(firstText(t, res), "args must be an object") {
+		t.Errorf("got %+v / %q", res, firstText(t, res))
+	}
+}
+
+func TestHandleSiteRun_BuilderError(t *testing.T) {
+	stubSiteFinder(t, func(string) *site.SiteMeta { return &site.SiteMeta{Name: "a"} })
+	stubSiteBuilder(t, func(*site.SiteMeta, map[string]interface{}, string) (*protocol.Request, error) {
+		return nil, errors.New("read fail")
+	})
+	res, _ := handleSiteRun(context.Background(), mkReq(map[string]any{"name": "a"}))
+	if !res.IsError || !strings.Contains(firstText(t, res), "read fail") {
+		t.Errorf("got %+v / %q", res, firstText(t, res))
+	}
+}
+
+func TestHandleSiteRun_Success(t *testing.T) {
+	stubSiteFinder(t, func(string) *site.SiteMeta { return &site.SiteMeta{Name: "twitter/search"} })
+
+	var gotArgs map[string]interface{}
+	var gotTab string
+	stubSiteBuilder(t, func(m *site.SiteMeta, args map[string]interface{}, tab string) (*protocol.Request, error) {
+		gotArgs = args
+		gotTab = tab
+		return &protocol.Request{Action: protocol.ActionEval, Script: "dummy", TabID: tab}, nil
+	})
+	cap := capturingSend(t, &protocol.Response{Success: true, Data: &protocol.ResponseData{Result: map[string]interface{}{"hits": 3}}})
+
+	res, _ := handleSiteRun(context.Background(), mkReq(map[string]any{
+		"name": "twitter/search",
+		"args": map[string]any{"query": "ai"},
+		"tab":  "t1",
+	}))
+	if res.IsError {
+		t.Fatalf("unexpected error: %v", res)
+	}
+	if gotArgs["query"] != "ai" {
+		t.Errorf("args not passed: %+v", gotArgs)
+	}
+	if gotTab != "t1" {
+		t.Errorf("tab = %q", gotTab)
+	}
+	if cap.req.Action != protocol.ActionEval || cap.req.ID == "" {
+		t.Errorf("dispatched req = %+v", cap.req)
+	}
+	if !strings.Contains(firstText(t, res), `"hits": 3`) {
+		t.Errorf("result not formatted: %q", firstText(t, res))
+	}
+}
+
+func TestHandleSiteRun_SendError(t *testing.T) {
+	stubSiteFinder(t, func(string) *site.SiteMeta { return &site.SiteMeta{Name: "a"} })
+	stubSiteBuilder(t, func(*site.SiteMeta, map[string]interface{}, string) (*protocol.Request, error) {
+		return &protocol.Request{Action: protocol.ActionEval}, nil
+	})
+	stubSend(t, func(*protocol.Request) (*protocol.Response, error) {
+		return nil, errors.New("connection refused")
+	})
+	res, _ := handleSiteRun(context.Background(), mkReq(map[string]any{"name": "a"}))
+	if !res.IsError {
+		t.Errorf("expected error result")
 	}
 }
 

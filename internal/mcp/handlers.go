@@ -4,12 +4,22 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/leolin310148/bb-browser-go/internal/client"
 	"github.com/leolin310148/bb-browser-go/internal/protocol"
+	"github.com/leolin310148/bb-browser-go/internal/site"
 	"github.com/mark3labs/mcp-go/mcp"
+)
+
+// siteLister / siteFinder / siteBuilder are variables so tests can stub the
+// on-disk adapter resolution without creating real files.
+var (
+	siteLister  = site.AllSites
+	siteFinder  = site.FindSite
+	siteBuilder = site.BuildEvalRequest
 )
 
 func newID() string {
@@ -410,6 +420,81 @@ func handleConsole(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRes
 		return mcp.NewToolResultText("Console messages cleared"), nil
 	}
 	return formatConsole(resp), nil
+}
+
+// --- Site Adapter Handlers ---
+
+func handleSiteList(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	sites := siteLister()
+	if len(sites) == 0 {
+		return mcp.NewToolResultText("No site adapters available. Run `bb-browser site update` on the daemon host to pull community adapters."), nil
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Site adapters (%d):\n", len(sites))
+	for _, s := range sites {
+		src := ""
+		if s.Source != "" {
+			src = fmt.Sprintf(" [%s]", s.Source)
+		}
+		fmt.Fprintf(&sb, "  %s%s", s.Name, src)
+		if s.Description != "" {
+			fmt.Fprintf(&sb, " — %s", s.Description)
+		}
+		if s.Domain != "" {
+			fmt.Fprintf(&sb, " (%s)", s.Domain)
+		}
+		sb.WriteByte('\n')
+	}
+	return mcp.NewToolResultText(sb.String()), nil
+}
+
+func handleSiteInfo(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := r.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError("name is required"), nil
+	}
+	meta := siteFinder(name)
+	if meta == nil {
+		return mcp.NewToolResultError(fmt.Sprintf("adapter not found: %s", name)), nil
+	}
+	out, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to encode metadata: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(out)), nil
+}
+
+func handleSiteRun(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	name, err := r.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError("name is required"), nil
+	}
+	meta := siteFinder(name)
+	if meta == nil {
+		return mcp.NewToolResultError(fmt.Sprintf("adapter not found: %s", name)), nil
+	}
+
+	args := map[string]interface{}{}
+	if raw, ok := r.GetArguments()["args"]; ok && raw != nil {
+		if m, ok := raw.(map[string]interface{}); ok {
+			args = m
+		} else {
+			return mcp.NewToolResultError("args must be an object"), nil
+		}
+	}
+
+	tabID := r.GetString("tab", "")
+	req, err := siteBuilder(meta, args, tabID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to build adapter request: %v", err)), nil
+	}
+	req.ID = newID()
+
+	resp, err := sendCommand(req)
+	if e := checkError(resp, err); e != nil {
+		return e, nil
+	}
+	return formatEval(resp), nil
 }
 
 func handleErrors(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolResult, error) {

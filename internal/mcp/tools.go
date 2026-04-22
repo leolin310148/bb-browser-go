@@ -187,3 +187,21 @@ var errorsTool = mcp.NewTool("browser_errors",
 	mcp.WithString("filter", mcp.Description("Pattern to filter errors")),
 	tabParam(),
 )
+
+// --- Site Adapters ---
+
+var siteListTool = mcp.NewTool("browser_site_list",
+	mcp.WithDescription("List available site adapters — JavaScript plugins that automate interactions with specific websites (e.g. twitter/search). Returns adapter names, descriptions, domains, and argument schemas. Adapters are resolved on the bb-browser daemon's filesystem."),
+)
+
+var siteInfoTool = mcp.NewTool("browser_site_info",
+	mcp.WithDescription("Get detailed metadata for a site adapter, including its argument schema and example usage."),
+	mcp.WithString("name", mcp.Required(), mcp.Description("Adapter name, e.g. \"twitter/search\"")),
+)
+
+var siteRunTool = mcp.NewTool("browser_site_run",
+	mcp.WithDescription("Run a site adapter in the user's real Chrome tab. The adapter's JavaScript runs with the user's session (cookies, logins). Call browser_site_list first to discover adapters and their required arguments."),
+	mcp.WithString("name", mcp.Required(), mcp.Description("Adapter name, e.g. \"twitter/search\"")),
+	mcp.WithObject("args", mcp.Description("Adapter arguments as a JSON object (e.g. {\"query\": \"AI news\"})")),
+	tabParam(),
+)

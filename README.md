@@ -120,7 +120,7 @@ Add to your MCP client configuration (e.g. `.claude/settings.json` for Claude Co
 
 ### Available Tools
 
-The MCP server exposes 26 tools:
+The MCP server exposes 29 tools:
 
 | Category | Tools |
 |----------|-------|
@@ -129,6 +129,7 @@ The MCP server exposes 26 tools:
 | **Observation** | `browser_snapshot`, `browser_screenshot`, `browser_get`, `browser_eval`, `browser_wait` |
 | **Tab Management** | `browser_tab_list`, `browser_tab_new`, `browser_tab_select`, `browser_tab_close` |
 | **Diagnostics** | `browser_network`, `browser_console`, `browser_errors` |
+| **Site Adapters** | `browser_site_list`, `browser_site_info`, `browser_site_run` |
 
 The workflow mirrors the CLI: call `browser_snapshot` to see the page structure with element refs, then use those refs with interaction tools like `browser_click` or `browser_fill`. Screenshots are returned as inline base64 PNG images.
 
@@ -197,6 +198,9 @@ All `/v1/*` routes accept JSON request bodies and return JSON responses shaped a
 | POST | `/v1/console` | `{command?, filter?, since?, tab?}` |
 | POST | `/v1/errors` | `{command?, filter?, since?, tab?}` |
 | POST | `/v1/fetch` | `{url, method?, tab?}` — authenticated fetch |
+| GET | `/v1/sites` | — list site adapters on the server |
+| POST | `/v1/sites/info` | `{name}` — adapter metadata |
+| POST | `/v1/sites/run` | `{name, args?, tab?}` — run a site adapter |
 | POST | `/command` | raw `protocol.Request` — escape hatch |
 
 ### Example: curl
