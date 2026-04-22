@@ -343,7 +343,18 @@ func launchManagedBrowser(port int) (*CDPEndpoint, error) {
 		"about:blank",
 	}
 
-	cmd := exec.Command(executable, args...)
+	// On macOS, launching the inner Mach-O binary directly bypasses
+	// LaunchServices, so the window never becomes key — physical keyboard
+	// input (address bar, Cmd+T, typing) is dropped. Go through `open -n -a`
+	// to get proper app activation.
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" && strings.Contains(executable, ".app/Contents/MacOS/") {
+		appPath := executable[:strings.Index(executable, ".app/Contents/MacOS/")+len(".app")]
+		openArgs := append([]string{"-n", "-a", appPath, "--args"}, args...)
+		cmd = exec.Command("/usr/bin/open", openArgs...)
+	} else {
+		cmd = exec.Command(executable, args...)
+	}
 	setDetached(cmd)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
