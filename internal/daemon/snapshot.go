@@ -161,13 +161,28 @@ func matchesSelector(el rawDomElementNode, role, name, selector string) bool {
 	return strings.Contains(haystack, lower)
 }
 
+// matchesRole returns true when roleFilter is empty or exactly matches the
+// element's role (case-insensitive). Unlike selector, this is not a substring
+// match — a filter of "button" will not match role="textbox".
+func matchesRole(role, roleFilter string) bool {
+	if roleFilter == "" {
+		return true
+	}
+	return strings.EqualFold(role, roleFilter)
+}
+
 // ConvertBuildDomTreeResult converts buildDomTree.js output to an accessibility tree.
-func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, compact bool, maxDepth *int, selector string) *protocol.SnapshotData {
+//
+// selector is a case-insensitive substring match across tag/role/name/xpath/attr values.
+// roleFilter, when non-empty, requires an exact (case-insensitive) role match and is AND'd
+// with selector. Both default to "match anything" when empty.
+func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, compact bool, maxDepth *int, selector, roleFilter string) *protocol.SnapshotData {
 	if result == nil || result.Map == nil || result.RootID == "" {
-		return &protocol.SnapshotData{Snapshot: "", Refs: map[string]*protocol.RefInfo{}}
+		return &protocol.SnapshotData{Snapshot: "", Refs: map[string]*protocol.RefInfo{}, Elements: []*protocol.ElementInfo{}}
 	}
 
 	refs := make(map[string]*protocol.RefInfo)
+	var elements []*protocol.ElementInfo
 	var lines []string
 
 	if interactiveOnly {
@@ -199,7 +214,7 @@ func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, comp
 			refID := fmt.Sprintf("%d", n.index)
 			role := getRole(n.el)
 			name := getName(n.el, result.Map)
-			if !matchesSelector(n.el, role, name, selector) {
+			if !matchesSelector(n.el, role, name, selector) || !matchesRole(role, roleFilter) {
 				continue
 			}
 			line := fmt.Sprintf("%s [ref=%s]", role, refID)
@@ -207,14 +222,23 @@ func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, comp
 				line += fmt.Sprintf(" %q", truncateText(name, 50))
 			}
 			lines = append(lines, line)
+			tag := strings.ToLower(n.el.TagName)
+			xpath := el2xpath(n.el)
 			refs[refID] = &protocol.RefInfo{
-				XPath:   el2xpath(n.el),
+				XPath:   xpath,
 				Role:    role,
 				Name:    name,
-				TagName: strings.ToLower(n.el.TagName),
+				TagName: tag,
 			}
+			elements = append(elements, &protocol.ElementInfo{
+				Ref:     refID,
+				XPath:   xpath,
+				Role:    role,
+				Name:    name,
+				TagName: tag,
+			})
 		}
-		return &protocol.SnapshotData{Snapshot: strings.Join(lines, "\n"), Refs: refs}
+		return &protocol.SnapshotData{Snapshot: strings.Join(lines, "\n"), Refs: refs, Elements: elements}
 	}
 
 	// Full tree walk
@@ -244,7 +268,7 @@ func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, comp
 
 		role := getRole(el)
 		name := getName(el, result.Map)
-		if !matchesSelector(el, role, name, selector) {
+		if !matchesSelector(el, role, name, selector) || !matchesRole(role, roleFilter) {
 			for _, childID := range el.Children {
 				walk(childID, depth+1)
 			}
@@ -274,12 +298,21 @@ func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, comp
 		lines = append(lines, line)
 
 		if refID != "" {
+			tag := strings.ToLower(el.TagName)
+			xpath := el2xpath(el)
 			refs[refID] = &protocol.RefInfo{
-				XPath:   el2xpath(el),
+				XPath:   xpath,
 				Role:    role,
 				Name:    name,
-				TagName: strings.ToLower(el.TagName),
+				TagName: tag,
 			}
+			elements = append(elements, &protocol.ElementInfo{
+				Ref:     refID,
+				XPath:   xpath,
+				Role:    role,
+				Name:    name,
+				TagName: tag,
+			})
 		}
 
 		for _, childID := range el.Children {
@@ -288,7 +321,7 @@ func ConvertBuildDomTreeResult(result *buildDomTreeResult, interactiveOnly, comp
 	}
 
 	walk(result.RootID, 0)
-	return &protocol.SnapshotData{Snapshot: strings.Join(lines, "\n"), Refs: refs}
+	return &protocol.SnapshotData{Snapshot: strings.Join(lines, "\n"), Refs: refs, Elements: elements}
 }
 
 func el2xpath(el rawDomElementNode) string {

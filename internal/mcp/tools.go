@@ -106,7 +106,8 @@ var snapshotTool = mcp.NewTool("browser_snapshot",
 	mcp.WithBoolean("interactive", mcp.Description("Only include interactive elements (links, buttons, inputs)")),
 	mcp.WithBoolean("compact", mcp.Description("Use compact output format")),
 	mcp.WithNumber("maxDepth", mcp.Description("Maximum tree depth to return")),
-	mcp.WithString("selector", mcp.Description("CSS selector to scope the snapshot to a subtree")),
+	mcp.WithString("selector", mcp.Description("Case-insensitive substring match across tag/role/name/xpath/attribute values. Not CSS. Filters elements; pass e.g. \"submit\" to narrow the snapshot. Combine with role for precision.")),
+	mcp.WithString("role", mcp.Description("Filter to elements of an exact accessibility role (case-insensitive), e.g. \"button\", \"textbox\", \"link\". AND'd with selector.")),
 	tabParam(),
 )
 

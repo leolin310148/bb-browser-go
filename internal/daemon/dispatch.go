@@ -64,7 +64,7 @@ func buildSnapshot(cdp *CdpConnection, targetID string, tab *TabState, req *prot
 		return &protocol.SnapshotData{Snapshot: "", Refs: map[string]*protocol.RefInfo{}}, nil
 	}
 
-	snapshot := ConvertBuildDomTreeResult(&result, req.Interactive, req.Compact, req.MaxDepth, req.Selector)
+	snapshot := ConvertBuildDomTreeResult(&result, req.Interactive, req.Compact, req.MaxDepth, req.Selector, req.Role)
 	tab.Refs = snapshot.Refs
 	return snapshot, nil
 }

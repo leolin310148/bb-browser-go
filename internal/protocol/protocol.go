@@ -67,6 +67,7 @@ type Request struct {
 	Compact     bool   `json:"compact,omitempty"`
 	MaxDepth    *int   `json:"maxDepth,omitempty"`
 	Selector    string `json:"selector,omitempty"`
+	Role        string `json:"role,omitempty"`
 
 	// Tab/Frame
 	TabID interface{} `json:"tabId,omitempty"` // number or string
@@ -142,6 +143,17 @@ type RefInfo struct {
 	TagName          string `json:"tagName,omitempty"`
 }
 
+// ElementInfo is a RefInfo with its ref ID inlined, for iterable consumers
+// (REST/n8n) that prefer arrays over a map keyed by ref.
+type ElementInfo struct {
+	Ref              string `json:"ref"`
+	BackendDOMNodeID int    `json:"backendDOMNodeId,omitempty"`
+	XPath            string `json:"xpath,omitempty"`
+	Role             string `json:"role"`
+	Name             string `json:"name,omitempty"`
+	TagName          string `json:"tagName,omitempty"`
+}
+
 // TabInfo represents a browser tab.
 type TabInfo struct {
 	Index  int         `json:"index"`
@@ -153,9 +165,14 @@ type TabInfo struct {
 }
 
 // SnapshotData holds the accessibility tree and ref mapping.
+//
+// Refs is a map keyed by ref ID (for O(1) lookup). Elements is the same
+// data as an array in snapshot order, easier to iterate/filter in REST
+// consumers like n8n.
 type SnapshotData struct {
 	Snapshot string              `json:"snapshot"`
 	Refs     map[string]*RefInfo `json:"refs"`
+	Elements []*ElementInfo      `json:"elements"`
 }
 
 // NetworkRequestInfo represents a captured network request.

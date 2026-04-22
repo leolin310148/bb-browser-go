@@ -162,6 +162,57 @@ func TestMatchesSelector(t *testing.T) {
 	}
 }
 
+func TestMatchesRole(t *testing.T) {
+	// Empty filter matches anything.
+	if !matchesRole("button", "") {
+		t.Fatal("empty filter should match")
+	}
+	// Exact match (case-insensitive).
+	if !matchesRole("button", "Button") {
+		t.Fatal("case-insensitive exact should match")
+	}
+	// Substring must NOT match (this is the whole point vs. selector).
+	if matchesRole("textbox", "text") {
+		t.Fatal("substring should not match")
+	}
+	if matchesRole("button", "link") {
+		t.Fatal("different role should not match")
+	}
+}
+
+func TestConvertBuildDomTreeResult_RoleFilter(t *testing.T) {
+	hi := func(i int) *int { return &i }
+	nodeMap := map[string]json.RawMessage{
+		"btn":  mustRaw(t, rawDomElementNode{TagName: "button", XPath: "/btn", HighlightIndex: hi(1), Attributes: map[string]string{"aria-label": "Submit"}}),
+		"link": mustRaw(t, rawDomElementNode{TagName: "a", XPath: "/link", HighlightIndex: hi(2), Attributes: map[string]string{"href": "/submit", "aria-label": "Submit via link"}}),
+	}
+	res := &buildDomTreeResult{RootID: "btn", Map: nodeMap}
+
+	// Selector alone matches both (both have "submit" in name/attrs).
+	out := ConvertBuildDomTreeResult(res, true, false, nil, "submit", "")
+	if len(out.Elements) != 2 {
+		t.Fatalf("selector-only should match 2, got %d: %+v", len(out.Elements), out.Elements)
+	}
+
+	// Role filter narrows to button only.
+	out = ConvertBuildDomTreeResult(res, true, false, nil, "submit", "button")
+	if len(out.Elements) != 1 || out.Elements[0].Role != "button" {
+		t.Fatalf("role=button should narrow to 1 button, got %+v", out.Elements)
+	}
+
+	// Role filter is exact, not substring — "butt" must NOT match "button".
+	out = ConvertBuildDomTreeResult(res, true, false, nil, "", "butt")
+	if len(out.Elements) != 0 {
+		t.Fatalf("partial role should match nothing, got %+v", out.Elements)
+	}
+
+	// Role filter works case-insensitively.
+	out = ConvertBuildDomTreeResult(res, true, false, nil, "", "LINK")
+	if len(out.Elements) != 1 || out.Elements[0].Role != "link" {
+		t.Fatalf("case-insensitive role should match link, got %+v", out.Elements)
+	}
+}
+
 func TestEl2XPath(t *testing.T) {
 	if got := el2xpath(rawDomElementNode{XPath: "/foo"}); got != "/foo" {
 		t.Fatalf("xpath present: got %q", got)
@@ -177,7 +228,7 @@ func TestConvertBuildDomTreeResult_Nil(t *testing.T) {
 		"nil map":  {RootID: "x", Map: nil},
 		"no root":  {RootID: "", Map: map[string]json.RawMessage{}},
 	} {
-		out := ConvertBuildDomTreeResult(in, false, false, nil, "")
+		out := ConvertBuildDomTreeResult(in, false, false, nil, "", "")
 		if out == nil || out.Snapshot != "" || len(out.Refs) != 0 {
 			t.Fatalf("%s: expected empty snapshot, got %+v", name, out)
 		}
@@ -193,7 +244,7 @@ func TestConvertBuildDomTreeResult_InteractiveOnly(t *testing.T) {
 		"t": mustRaw(t, rawDomTextNode{Type: "TEXT_NODE", Text: "ignored"}),
 	}
 	res := &buildDomTreeResult{RootID: "a", Map: nodeMap}
-	out := ConvertBuildDomTreeResult(res, true, false, nil, "")
+	out := ConvertBuildDomTreeResult(res, true, false, nil, "", "")
 	if out == nil {
 		t.Fatal("nil result")
 	}
@@ -214,9 +265,19 @@ func TestConvertBuildDomTreeResult_InteractiveOnly(t *testing.T) {
 	if out.Refs["2"].Role != "button" || out.Refs["2"].Name != "Save" {
 		t.Fatalf("ref 2: %+v", out.Refs["2"])
 	}
+	// Elements array mirrors Refs in snapshot order (ref 1 then ref 2).
+	if len(out.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d: %+v", len(out.Elements), out.Elements)
+	}
+	if out.Elements[0].Ref != "1" || out.Elements[0].Role != "link" || out.Elements[0].Name != "Home" {
+		t.Fatalf("element[0]: %+v", out.Elements[0])
+	}
+	if out.Elements[1].Ref != "2" || out.Elements[1].Role != "button" || out.Elements[1].Name != "Save" || out.Elements[1].TagName != "button" {
+		t.Fatalf("element[1]: %+v", out.Elements[1])
+	}
 
 	// With a selector that matches neither, we get empty snapshot.
-	out = ConvertBuildDomTreeResult(res, true, false, nil, "zzz")
+	out = ConvertBuildDomTreeResult(res, true, false, nil, "zzz", "")
 	if out.Snapshot != "" {
 		t.Fatalf("selector no match: got %q", out.Snapshot)
 	}
@@ -231,7 +292,7 @@ func TestConvertBuildDomTreeResult_FullTree(t *testing.T) {
 	}
 	res := &buildDomTreeResult{RootID: "root", Map: nodeMap}
 
-	out := ConvertBuildDomTreeResult(res, false, false, nil, "")
+	out := ConvertBuildDomTreeResult(res, false, false, nil, "", "")
 	if !strings.Contains(out.Snapshot, "- region") { // <section> maps to role "region"
 		t.Fatalf("missing root line: %q", out.Snapshot)
 	}
@@ -244,22 +305,25 @@ func TestConvertBuildDomTreeResult_FullTree(t *testing.T) {
 	if out.Refs["1"] == nil || out.Refs["1"].Name != "Go" {
 		t.Fatalf("button ref: %+v", out.Refs["1"])
 	}
+	if len(out.Elements) != 1 || out.Elements[0].Ref != "1" || out.Elements[0].Name != "Go" {
+		t.Fatalf("full-tree elements: %+v", out.Elements)
+	}
 
 	// Compact mode: no tag suffix "<...>".
-	out = ConvertBuildDomTreeResult(res, false, true, nil, "")
+	out = ConvertBuildDomTreeResult(res, false, true, nil, "", "")
 	if strings.Contains(out.Snapshot, "<section>") || strings.Contains(out.Snapshot, "<button>") {
 		t.Fatalf("compact mode should not include tag suffix: %q", out.Snapshot)
 	}
 
 	// MaxDepth 0: root only, no children.
 	max := 0
-	out = ConvertBuildDomTreeResult(res, false, false, &max, "")
+	out = ConvertBuildDomTreeResult(res, false, false, &max, "", "")
 	if strings.Contains(out.Snapshot, "text \"hello\"") {
 		t.Fatalf("maxDepth 0 should skip text child: %q", out.Snapshot)
 	}
 
 	// Selector that doesn't match root: recurses to children.
-	out = ConvertBuildDomTreeResult(res, false, false, nil, "button")
+	out = ConvertBuildDomTreeResult(res, false, false, nil, "button", "")
 	if !strings.Contains(out.Snapshot, "[ref=1]") {
 		t.Fatalf("selector recurse: expected button line: %q", out.Snapshot)
 	}
@@ -272,7 +336,7 @@ func TestConvertBuildDomTreeResult_FullTree(t *testing.T) {
 		"root": mustRaw(t, rawDomElementNode{TagName: "div", Children: []string{"t"}}),
 		"t":    mustRaw(t, rawDomTextNode{Type: "TEXT_NODE", Text: "   "}),
 	}
-	out = ConvertBuildDomTreeResult(&buildDomTreeResult{RootID: "root", Map: emptyMap}, false, false, nil, "")
+	out = ConvertBuildDomTreeResult(&buildDomTreeResult{RootID: "root", Map: emptyMap}, false, false, nil, "", "")
 	if strings.Contains(out.Snapshot, "text") {
 		t.Fatalf("empty text should be skipped: %q", out.Snapshot)
 	}

@@ -146,10 +146,16 @@ func TestSnapshotData_RoundTrip(t *testing.T) {
 		Refs: map[string]*RefInfo{
 			"1": {BackendDOMNodeID: 42, Role: "button", Name: "OK", TagName: "BUTTON"},
 		},
+		Elements: []*ElementInfo{
+			{Ref: "1", BackendDOMNodeID: 42, Role: "button", Name: "OK", TagName: "BUTTON"},
+		},
 	}
 	b, err := json.Marshal(sd)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"elements"`) {
+		t.Errorf("elements field missing in JSON: %s", b)
 	}
 	var got SnapshotData
 	if err := json.Unmarshal(b, &got); err != nil {
@@ -157,6 +163,9 @@ func TestSnapshotData_RoundTrip(t *testing.T) {
 	}
 	if got.Refs["1"].BackendDOMNodeID != 42 || got.Refs["1"].Role != "button" {
 		t.Errorf("ref mismatch: %+v", got.Refs["1"])
+	}
+	if len(got.Elements) != 1 || got.Elements[0].Ref != "1" || got.Elements[0].Role != "button" {
+		t.Errorf("elements mismatch: %+v", got.Elements)
 	}
 }
 

@@ -256,6 +256,7 @@ func handleSnapshot(ctx context.Context, r mcp.CallToolRequest) (*mcp.CallToolRe
 		Interactive: r.GetBool("interactive", false),
 		Compact:     r.GetBool("compact", false),
 		Selector:    r.GetString("selector", ""),
+		Role:        r.GetString("role", ""),
 	}
 	if depth := r.GetInt("maxDepth", 0); depth > 0 {
 		req.MaxDepth = intPtr(depth)

@@ -110,6 +110,7 @@ func (s *Server) registerRESTRoutes(mux *http.ServeMux) {
 			Compact:     body.Compact,
 			MaxDepth:    body.MaxDepth,
 			Selector:    body.Selector,
+			Role:        body.Role,
 			TabID:       body.tabID(),
 		}
 	}))
@@ -243,6 +244,7 @@ type restBody struct {
 	Compact     bool        `json:"compact,omitempty"`
 	MaxDepth    *int        `json:"maxDepth,omitempty"`
 	Selector    string      `json:"selector,omitempty"`
+	Role        string      `json:"role,omitempty"`
 	Value       string      `json:"value,omitempty"`
 	Script      string      `json:"script,omitempty"`
 	Ms          *int        `json:"ms,omitempty"`
