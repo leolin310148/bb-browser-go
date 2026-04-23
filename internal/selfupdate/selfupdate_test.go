@@ -207,6 +207,147 @@ func TestRunEndToEnd(t *testing.T) {
 	}
 }
 
+func TestHumanSize(t *testing.T) {
+	cases := []struct {
+		n    int64
+		want string
+	}{
+		{500, "500 B"},
+		{2048, "2.0 KB"},
+		{5 * 1024 * 1024, "5.0 MB"},
+	}
+	for _, c := range cases {
+		if got := humanSize(c.n); got != c.want {
+			t.Errorf("humanSize(%d) = %q, want %q", c.n, got, c.want)
+		}
+	}
+}
+
+func TestRunUpToDate(t *testing.T) {
+	srv := newFakeReleaseServer(t, "v1.0.0", "bogus", nil, "")
+	defer srv.Close()
+
+	var buf strings.Builder
+	err := Run(context.Background(), Options{
+		CurrentVersion: "1.0.0",
+		Repo:           "owner/repo",
+		APIBaseURL:     srv.URL,
+		Stderr:         &buf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "Already up to date") {
+		t.Errorf("expected up-to-date message, got %q", buf.String())
+	}
+}
+
+func TestRunCheckOnly(t *testing.T) {
+	srv := newFakeReleaseServer(t, "v2.0.0", "bogus", nil, "")
+	defer srv.Close()
+
+	var buf strings.Builder
+	err := Run(context.Background(), Options{
+		CurrentVersion: "1.0.0",
+		Repo:           "owner/repo",
+		CheckOnly:      true,
+		APIBaseURL:     srv.URL,
+		Stderr:         &buf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "Update available") {
+		t.Errorf("expected update-available message, got %q", buf.String())
+	}
+}
+
+func TestRunReplacesExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("rename semantics differ on windows")
+	}
+	newBin := []byte("new-binary-payload")
+	sum := sha256.Sum256(newBin)
+	sumHex := hex.EncodeToString(sum[:])
+
+	srv := newFakeReleaseServer(t, "v2.0.0", sumHex, newBin, AssetName(runtime.GOOS, runtime.GOARCH))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	fakeExe := filepath.Join(dir, "bb-browser")
+	if err := os.WriteFile(fakeExe, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf strings.Builder
+	err := Run(context.Background(), Options{
+		CurrentVersion: "1.0.0",
+		Repo:           "owner/repo",
+		APIBaseURL:     srv.URL,
+		ExecutablePath: fakeExe,
+		Stderr:         &buf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(fakeExe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(newBin) {
+		t.Errorf("binary not replaced: got %q", got)
+	}
+}
+
+func TestRunMissingAsset(t *testing.T) {
+	srv := newFakeReleaseServer(t, "v2.0.0", "sum", []byte("x"), "other-asset-name")
+	defer srv.Close()
+
+	dir := t.TempDir()
+	fakeExe := filepath.Join(dir, "bb-browser")
+	os.WriteFile(fakeExe, []byte("old"), 0o755)
+
+	err := Run(context.Background(), Options{
+		CurrentVersion: "1.0.0",
+		Repo:           "owner/repo",
+		APIBaseURL:     srv.URL,
+		ExecutablePath: fakeExe,
+		Stderr:         io.Discard,
+	})
+	if err == nil || !strings.Contains(err.Error(), "no release asset") {
+		t.Fatalf("expected missing-asset error, got %v", err)
+	}
+}
+
+// newFakeReleaseServer stands up a GitHub-API-compatible server exposing one
+// release with the given tag. If assetName is non-empty, it also publishes a
+// platform binary + a matching checksums.txt.
+func newFakeReleaseServer(t *testing.T, tag, sumHex string, binBody []byte, assetName string) *httptest.Server {
+	t.Helper()
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/releases/latest"):
+			w.Header().Set("Content-Type", "application/json")
+			if assetName == "" {
+				fmt.Fprintf(w, `{"tag_name":%q,"assets":[]}`, tag)
+				return
+			}
+			fmt.Fprintf(w, `{"tag_name":%q,"assets":[
+				{"name":%q,"browser_download_url":%q,"size":%d},
+				{"name":"checksums.txt","browser_download_url":%q,"size":1}
+			]}`, tag, assetName, srv.URL+"/bin", len(binBody), srv.URL+"/checksums.txt")
+		case r.URL.Path == "/bin":
+			w.Write(binBody)
+		case r.URL.Path == "/checksums.txt":
+			fmt.Fprintf(w, "%s  %s\n", sumHex, assetName)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv
+}
+
 func TestDownloadVerifiedChecksumMismatch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("payload"))

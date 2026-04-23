@@ -41,6 +41,10 @@ type Options struct {
 	GOARCH         string
 	HTTPClient     *http.Client
 	Stderr         io.Writer
+
+	// Test seams. Zero values use production defaults.
+	ExecutablePath string // overrides os.Executable() resolution
+	APIBaseURL     string // overrides https://api.github.com
 }
 
 func Run(ctx context.Context, opts Options) error {
@@ -61,7 +65,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 
 	fmt.Fprintf(opts.Stderr, "Checking latest release from %s...\n", opts.Repo)
-	rel, err := LatestRelease(ctx, opts.Repo, opts.HTTPClient)
+	rel, err := latestReleaseFrom(ctx, opts.APIBaseURL, opts.Repo, opts.HTTPClient)
 	if err != nil {
 		return fmt.Errorf("fetch latest release: %w", err)
 	}
@@ -95,13 +99,16 @@ func Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("no checksum entry for %s", asset.Name)
 	}
 
-	exePath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("locate current executable: %w", err)
+	exePath := opts.ExecutablePath
+	if exePath == "" {
+		p, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("locate current executable: %w", err)
+		}
+		exePath = p
 	}
-	exePath, err = filepath.EvalSymlinks(exePath)
-	if err != nil {
-		return fmt.Errorf("resolve executable path: %w", err)
+	if resolved, err := filepath.EvalSymlinks(exePath); err == nil {
+		exePath = resolved
 	}
 
 	fmt.Fprintf(opts.Stderr, "Downloading %s (%s)...\n", asset.Name, humanSize(asset.Size))
@@ -120,7 +127,14 @@ func Run(ctx context.Context, opts Options) error {
 }
 
 func LatestRelease(ctx context.Context, repo string, client *http.Client) (*Release, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
+	return latestReleaseFrom(ctx, "", repo, client)
+}
+
+func latestReleaseFrom(ctx context.Context, baseURL, repo string, client *http.Client) (*Release, error) {
+	if baseURL == "" {
+		baseURL = "https://api.github.com"
+	}
+	url := fmt.Sprintf("%s/repos/%s/releases/latest", baseURL, repo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
