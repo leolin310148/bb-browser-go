@@ -2,6 +2,7 @@
 package site
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ type SiteMeta struct {
 	Description string            `json:"description"`
 	Domain      string            `json:"domain"`
 	Args        map[string]ArgDef `json:"args"`
+	ArgOrder    []string          `json:"-"` // declaration order of Args keys
 	ReadOnly    bool              `json:"readOnly"`
 	Example     string            `json:"example"`
 	FilePath    string            `json:"-"`
@@ -52,6 +54,10 @@ func ParseSiteMeta(filePath, source string) (*SiteMeta, error) {
 	if err := json.Unmarshal([]byte(matches[1]), &meta); err != nil {
 		return nil, fmt.Errorf("invalid @meta JSON in %s: %w", filePath, err)
 	}
+
+	// Preserve declared order of args keys, since json.Unmarshal into a map
+	// loses it (and Go map iteration is randomized).
+	meta.ArgOrder = extractArgOrder([]byte(matches[1]))
 
 	// Default name from path
 	if meta.Name == "" {
@@ -144,14 +150,65 @@ func BuildAdapterScript(meta *SiteMeta, args map[string]interface{}) (string, er
 	return script, nil
 }
 
+// extractArgOrder walks the raw @meta JSON with a decoder so we can recover the
+// declaration order of the "args" object's keys (map unmarshaling drops it).
+func extractArgOrder(raw []byte) []string {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	// Top-level '{'
+	if _, err := dec.Token(); err != nil {
+		return nil
+	}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil
+		}
+		key, _ := tok.(string)
+		if key != "args" {
+			// Skip the value
+			var skip json.RawMessage
+			if err := dec.Decode(&skip); err != nil {
+				return nil
+			}
+			continue
+		}
+		// Enter the args object
+		if _, err := dec.Token(); err != nil {
+			return nil
+		}
+		var order []string
+		for dec.More() {
+			nameTok, err := dec.Token()
+			if err != nil {
+				return nil
+			}
+			name, ok := nameTok.(string)
+			if !ok {
+				return nil
+			}
+			order = append(order, name)
+			var skip json.RawMessage
+			if err := dec.Decode(&skip); err != nil {
+				return nil
+			}
+		}
+		return order
+	}
+	return nil
+}
+
 // ParseAdapterArgs parses CLI positional + flag args into a map for the adapter.
 func ParseAdapterArgs(meta *SiteMeta, cliArgs []string) map[string]interface{} {
 	result := make(map[string]interface{})
 
-	// Get arg names in order
-	var argNames []string
-	for name := range meta.Args {
-		argNames = append(argNames, name)
+	// Use the declared arg order (from the @meta JSON). Fall back to map keys
+	// for metas constructed in-memory without order; this is only deterministic
+	// for tests that don't rely on positional assignment.
+	argNames := meta.ArgOrder
+	if argNames == nil {
+		for name := range meta.Args {
+			argNames = append(argNames, name)
+		}
 	}
 
 	// Fill positional args

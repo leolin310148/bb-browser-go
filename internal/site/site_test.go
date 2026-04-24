@@ -56,6 +56,59 @@ func TestParseSiteMeta_Valid(t *testing.T) {
 	if q, ok := meta.Args["query"]; !ok || !q.Required {
 		t.Errorf("Args.query: %+v", meta.Args)
 	}
+	if got, want := meta.ArgOrder, []string{"query", "limit"}; !stringsEqual(got, want) {
+		t.Errorf("ArgOrder = %v, want %v", got, want)
+	}
+}
+
+func stringsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Regression: with ≥5 args, positional assignment used to be randomized by
+// Go map iteration. ArgOrder now pins it to declaration order.
+func TestParseSiteMeta_ArgOrderFiveArgs(t *testing.T) {
+	dir := t.TempDir()
+	body := `/* @meta
+{
+  "name": "reddit",
+  "args": {
+    "query":    {"required": true},
+    "sort":     {"required": false},
+    "time":     {"required": false},
+    "count":    {"required": false},
+    "subreddit":{"required": false}
+  }
+}
+*/
+(function(){})`
+	path := writeSite(t, dir, "sites/reddit.js", body)
+	want := []string{"query", "sort", "time", "count", "subreddit"}
+	// Run multiple times to shake out map-iteration nondeterminism.
+	for i := 0; i < 50; i++ {
+		meta, err := ParseSiteMeta(path, "local")
+		if err != nil {
+			t.Fatalf("ParseSiteMeta: %v", err)
+		}
+		if !stringsEqual(meta.ArgOrder, want) {
+			t.Fatalf("iter %d: ArgOrder = %v, want %v", i, meta.ArgOrder, want)
+		}
+		got := ParseAdapterArgs(meta, []string{"hello", "--sort", "top"})
+		if got["query"] != "hello" {
+			t.Fatalf("iter %d: positional assigned to %+v, want query=hello", i, got)
+		}
+		if got["sort"] != "top" {
+			t.Fatalf("iter %d: sort flag = %+v", i, got)
+		}
+	}
 }
 
 func TestParseSiteMeta_DefaultName(t *testing.T) {
@@ -215,18 +268,13 @@ func TestBuildAdapterScript_MissingFile(t *testing.T) {
 }
 
 func TestParseAdapterArgs_Positional(t *testing.T) {
-	meta := &SiteMeta{Args: map[string]ArgDef{"q": {}, "limit": {}}}
+	meta := &SiteMeta{
+		Args:     map[string]ArgDef{"q": {}, "limit": {}},
+		ArgOrder: []string{"q", "limit"},
+	}
 	got := ParseAdapterArgs(meta, []string{"hello", "5"})
-	// Arg ordering from map is non-deterministic; validate both got values.
-	if len(got) != 2 {
-		t.Fatalf("expected 2 args, got %+v", got)
-	}
-	values := map[string]bool{}
-	for _, v := range got {
-		values[v.(string)] = true
-	}
-	if !values["hello"] || !values["5"] {
-		t.Errorf("positional values missing: %+v", got)
+	if got["q"] != "hello" || got["limit"] != "5" {
+		t.Errorf("positional assignment = %+v, want q=hello limit=5", got)
 	}
 }
 
