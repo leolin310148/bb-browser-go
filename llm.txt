@@ -28,30 +28,36 @@ Every response carries a short `tab` id (e.g. `ab1c`); pass it as `--tab <id>` (
 ## CLI cheat sheet
 
 ```bash
-bb-browser open <url>                  # reuses tab with same URL; --new forces fresh
-bb-browser snapshot [-i] [-c] [-d N]   # accessibility tree with refs
-bb-browser click <ref>                 # refs come from snapshot
-bb-browser fill <ref> <text>           # clear + fill
-bb-browser type <ref> <text>           # append
-bb-browser press <key>                 # Enter, Tab, ArrowDown, Escape, ...
-bb-browser eval <script>               # JS in page context, returns JSON
-bb-browser screenshot                  # base64 PNG in JSON
+bb-browser open <url>                              # reuses tab with same URL; --new forces fresh
+bb-browser open <url> --wait-for '<selector>' [--timeout <ms>]  # block until selector found (10s default)
+bb-browser snapshot [-i] [-c] [-d N]               # accessibility tree with refs
+bb-browser click <ref>                             # refs come from snapshot
+bb-browser fill <ref> <text>                       # clear + fill
+bb-browser type <ref> <text>                       # append
+bb-browser press <key>                             # Enter, Tab, ArrowDown, Escape, ...
+bb-browser eval <script>                           # JS in page context, returns JSON
+bb-browser eval --unwrap <script>                  # print result raw (strings unquoted)
+bb-browser eval --file <path>                      # read script from disk
+bb-browser eval "await fetch('/x').then(...)"      # top-level await auto-wraps in async IIFE
+bb-browser screenshot                              # base64 PNG in JSON
 bb-browser get <url|title|text|href|value|class> [ref]
 bb-browser network [requests|clear] [--filter] [--method] [--status] [--with-body]
 bb-browser console [--clear] [--filter]
 bb-browser errors [--clear] [--filter]
-bb-browser fetch <url> [--method POST] # authenticated HTTP via page
-bb-browser tab                         # list; "tab new", "tab 2", "tab close 1"
-bb-browser frame <selector> | main     # iframe switching
+bb-browser fetch <url> [--method POST]             # authenticated HTTP via page
+bb-browser tab                                     # list; "tab new", "tab 2", "tab close 1"
+bb-browser frame <selector> | main                 # iframe switching
 bb-browser dialog accept|dismiss [text]
 bb-browser trace start|stop|status
-bb-browser site list|search|info|run|update   # site adapters
-bb-browser <platform>/<adapter> [args]        # shorthand for "site run"
+bb-browser site list|search|info|run|update       # site adapters
+bb-browser <platform>/<adapter> [args]            # shorthand for "site run"
 bb-browser status | daemon [shutdown]
 bb-browser server --host 0.0.0.0 --token ... [shutdown]
+bb-browser help [command [sub]]                    # per-command help
+bb-browser <command> --help                        # same, inline form
 ```
 
-Global flags: `--tab <id>`, `--json`, `--jq <expr>`, `--since <seq|last_action>`.
+Global flags: `--tab <id>`, `--json`, `--jq <expr>`, `--unwrap` (eval/site only), `--since <seq|last_action>`.
 
 ## MCP (for AI agents)
 
@@ -94,7 +100,7 @@ Auth: `Authorization: Bearer <token>`. Response shape: `{id, success, data?, err
 | GET | `/v1/tabs` | list |
 | POST | `/v1/tabs` | `{url?}` new tab |
 | POST | `/v1/tabs/select` \| `/tabs/close` | `{tabId?, index?}` |
-| POST | `/v1/open` | `{url, new?, tab?}` |
+| POST | `/v1/open` | `{url, new?, tab?, waitFor?, timeoutMs?}` |
 | POST | `/v1/back` \| `/forward` \| `/refresh` \| `/close` | `{tab?}` |
 | POST | `/v1/snapshot` | `{interactive?, compact?, maxDepth?, selector?, tab?}` |
 | POST | `/v1/screenshot` | `{path?, tab?}` |
@@ -125,6 +131,9 @@ Auth: `Authorization: Bearer <token>`. Response shape: `{id, success, data?, err
 ## Key behaviors to remember
 
 - **`open` reuses tabs with the exact same URL** (focus only, no reload). Use `--new` / `new: true` to force a fresh tab.
+- **`open --wait-for <selector>`** polls `document.querySelector(...)` on a 100 ms tick until non-null or `--timeout <ms>` elapses (default 10000 ms). Prefer it over `wait <ms>` for SPA navigation.
+- **`eval` auto-wraps top-level `await`** in `(async () => { return (<script>) })()` so `await fetch(...).then(...)` works without manual IIFE boilerplate. Disable with `--no-auto-await`. Already-async-IIFE scripts are not double-wrapped.
+- **`eval --unwrap`** prints `resp.data.result` raw — strings without surrounding quotes, everything else JSON-pretty. `--jq` and `--json` still take precedence when set.
 - **Non-loopback bind requires a token.** The server refuses to start otherwise.
 - **Site adapters run on the daemon's filesystem**, not the client's. A remote client invoking `/v1/sites/*` or `browser_site_run` gets whatever adapters the server has in `~/.bb-browser/sites` or `~/.bb-browser/bb-sites` (community, pulled via `bb-browser site update`).
 - **Network/console/error buffers are per-tab rings.** Use `--since last_action` for incremental queries.

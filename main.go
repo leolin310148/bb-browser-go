@@ -76,6 +76,10 @@ func main() {
 
 	switch command {
 	case "help", "--help", "-h":
+		if hasFlag(args, "--all") {
+			printAllHelp()
+			return
+		}
 		if len(cmdArgs) > 0 {
 			if strings.Contains(cmdArgs[0], "/") {
 				handleSite([]string{"info", cmdArgs[0]}, false, "")
@@ -485,7 +489,11 @@ func main() {
 		if strings.Contains(command, "/") {
 			handleSiteRun(command, cmdArgs, jsonOutput, globalTabID)
 		} else {
-			fmt.Fprintf(os.Stderr, "Unknown command: %s\nRun 'bb-browser help' for usage.\n", command)
+			fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
+			if suggestions := suggestCommands(command, 3); len(suggestions) > 0 {
+				fmt.Fprintf(os.Stderr, "Did you mean: %s?\n", strings.Join(suggestions, ", "))
+			}
+			fmt.Fprintln(os.Stderr, "Run 'bb-browser help' for the full command list.")
 			os.Exit(1)
 		}
 	}
@@ -1162,11 +1170,17 @@ func printHelp() {
 
 Usage: bb-browser <command> [options]
 
+Per-command help (most useful flags only show up here):
+  bb-browser <command> --help        Detailed usage, flags, examples
+  bb-browser help <command>          Same, via the 'help' subcommand
+  bb-browser help <command> <sub>    Drill into subcommands (e.g. 'tab new')
+  bb-browser help --all              Dump every command's help (pipe to a pager)
+
 Navigation:
-  open <url>                    Open URL in new tab
-  back                          Go back
-  forward                       Go forward
-  refresh                       Refresh page
+  open <url> [--new] [--wait-for <sel>] [--timeout <ms>]
+                                Open URL (reuses same-URL tab unless --new;
+                                --wait-for blocks until the selector appears)
+  back / forward / refresh      History navigation
   close                         Close current tab
 
 Interaction:
@@ -1174,15 +1188,17 @@ Interaction:
   hover <ref>                   Hover element
   fill <ref> <text>             Clear and fill input
   type <ref> <text>             Type text (append)
-  check <ref>                   Check checkbox
-  uncheck <ref>                 Uncheck checkbox
+  check <ref> / uncheck <ref>   (Un)check checkbox
   select <ref> <value>          Select option
-  press <key>                   Press key
+  press <key>                   Press key (Enter, Tab, ArrowDown, ...)
   scroll <direction> [pixels]   Scroll page
-  eval <script>                 Execute JavaScript
+  eval <script> [--unwrap] [--file <path>] [--no-auto-await]
+                                Execute JavaScript (top-level await
+                                auto-wraps in async IIFE; --unwrap prints
+                                the result raw; --file reads from disk)
 
 Observation:
-  snapshot [-i] [-c] [-d N]     Get accessibility tree
+  snapshot [-i] [-c] [-d N] [-s <sel>]   Get accessibility tree
   screenshot [path]             Take screenshot
   get <attribute> [ref]         Get element attribute
   network [requests|clear]      Network traffic
@@ -1198,28 +1214,25 @@ Tab Management:
   tab select --id <id>          Select by ID
 
 Site Adapters:
-  site list                     List adapters
-  site search <query>           Search adapters
-  site info <name>              Adapter details
-  site update                   Pull community adapters
-  site <name> [args...]         Run adapter
+  site list / search / info / update     Discover and refresh adapters
+  site run <name> [args]                 Run an adapter
+  <platform>/<adapter> [args]            Shorthand for 'site run'
 
 Utility:
-  fetch <url>                   Authenticated fetch
+  fetch <url>                   Authenticated fetch via page session
   status                        Daemon status
-  daemon                        Start daemon
-  daemon shutdown               Stop daemon
-  server [--host H --port P     Start remote-accessible HTTP server
-          --token T]            (exposes /v1/* REST routes; binds 0.0.0.0 by
-                                default, requires --token on non-loopback)
-  server shutdown               Stop server
+  daemon [shutdown]             Start/stop the local daemon
+  server --host H --port P --token T [shutdown]
+                                Start remote-accessible HTTP server
+                                (--token required on non-loopback binds)
   update [--check] [--force]    Download latest release and replace self
 
 Global Flags:
   --tab <id>                    Target tab
   --json                        JSON output
-  --jq <expr>                   Filter with jq expression
-  --since <seq|last_action>     Incremental query
+  --jq <expr>                   Filter with jq expression (implies --json)
+  --unwrap                      For 'eval'/site adapters: print result raw
+  --since <seq|last_action>     Incremental query (network/console/errors)
 
 Refs & snapshots:
   Interaction commands (click, fill, ...) take a <ref> from a prior
@@ -1227,9 +1240,10 @@ Refs & snapshots:
   pass "5" (or "@5") as <ref>. Refs regenerate on every snapshot — always
   re-snapshot after navigation or DOM changes.
 
-Per-command help:
-  bb-browser <command> --help   Detailed usage, flags, and examples
-  bb-browser help <command>     Same, via the 'help' subcommand
+Tips:
+  - Prefer 'open --wait-for' over 'wait <ms>' for SPA navigation.
+  - Use 'eval --unwrap' to skip the {success,data,result,...} envelope.
+  - Use '--since last_action' on network/console/errors for incremental reads.
 
 Agents & automation:
   See skill.md / llm.txt in this repo for end-to-end guidance on driving

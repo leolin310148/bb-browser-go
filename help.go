@@ -676,3 +676,106 @@ func commandNames() []string {
 	sort.Strings(names)
 	return names
 }
+
+// topLevelCommandNames returns sorted top-level commands (no dotted
+// subcommand pages like "tab.new").
+func topLevelCommandNames() []string {
+	out := make([]string, 0, len(commandHelp))
+	for n := range commandHelp {
+		if strings.Contains(n, ".") {
+			continue
+		}
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// printAllHelp dumps every registered command's help block in one go.
+// Intended for piping into a pager or feeding to an LLM.
+func printAllHelp() {
+	fmt.Println("# bb-browser-go — full command reference")
+	fmt.Println()
+	for _, name := range commandNames() {
+		fmt.Printf("## %s\n\n", name)
+		printCommandHelp(name)
+	}
+}
+
+// suggestCommands returns up to maxN canonical command names closest to input
+// (Levenshtein <= 3). Returns nil if nothing's close enough — better silent
+// than to scream "did you mean tab?" when the user typed "xyzzy".
+func suggestCommands(input string, maxN int) []string {
+	type scored struct {
+		name string
+		dist int
+	}
+	var hits []scored
+	for _, n := range topLevelCommandNames() {
+		d := levenshtein(strings.ToLower(input), n)
+		// Tighten the cap for short commands (e.g. "tab" -> "tap" should match
+		// at d=1 but "tab" -> "scroll" should not via d=4).
+		threshold := 3
+		if len(n) <= 4 {
+			threshold = 2
+		}
+		if d <= threshold {
+			hits = append(hits, scored{n, d})
+		}
+	}
+	sort.Slice(hits, func(i, j int) bool {
+		if hits[i].dist != hits[j].dist {
+			return hits[i].dist < hits[j].dist
+		}
+		return hits[i].name < hits[j].name
+	})
+	if len(hits) > maxN {
+		hits = hits[:maxN]
+	}
+	out := make([]string, len(hits))
+	for i, h := range hits {
+		out[i] = h.name
+	}
+	return out
+}
+
+// levenshtein returns the edit distance between a and b.
+func levenshtein(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	prev := make([]int, len(b)+1)
+	curr := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		curr[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			curr[j] = min3(curr[j-1]+1, prev[j]+1, prev[j-1]+cost)
+		}
+		prev, curr = curr, prev
+	}
+	return prev[len(b)]
+}
+
+func min3(a, b, c int) int {
+	m := a
+	if b < m {
+		m = b
+	}
+	if c < m {
+		m = c
+	}
+	return m
+}

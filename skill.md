@@ -42,22 +42,28 @@ Tool categories (29 total): navigation, interaction, observation (includes `brow
 ### 2. Shell / CLI
 
 ```bash
-bb-browser open <url>               # reuses tab with same URL; --new forces fresh
-bb-browser snapshot -i -c           # -i: interactive only, -c: compact
+bb-browser open <url>                            # reuses tab with same URL; --new forces fresh
+bb-browser open <url> --wait-for '<selector>'    # block until selector exists (default 10s)
+bb-browser snapshot -i -c                        # -i: interactive only, -c: compact
 bb-browser click <ref>
 bb-browser fill <ref> <text>
 bb-browser press <key>
-bb-browser eval "<js>"              # JS in page context → JSON
+bb-browser eval "<js>"                           # JS in page context → JSON
+bb-browser eval --unwrap "document.title"        # print result raw (strings unquoted)
+bb-browser eval --file ./extract.js              # read script from file
+bb-browser eval "await fetch('/api/me').then(r=>r.json())"  # top-level await auto-wraps
 bb-browser get <url|title|text|href|value> [ref]
-bb-browser screenshot               # base64 PNG
+bb-browser screenshot                            # base64 PNG
 bb-browser network requests --since last_action
 bb-browser console --filter error
-bb-browser fetch <url>              # authenticated HTTP via page session
-bb-browser tab                      # list tabs
-bb-browser <platform>/<adapter> [args]   # run a site adapter
+bb-browser fetch <url>                           # authenticated HTTP via page session
+bb-browser tab                                   # list tabs
+bb-browser <platform>/<adapter> [args]           # run a site adapter
 ```
 
-Global flags: `--tab <id>`, `--json`, `--jq <expr>`, `--since <seq|last_action>`.
+Global flags: `--tab <id>`, `--json`, `--jq <expr>`, `--unwrap` (eval/site only), `--since <seq|last_action>`.
+
+Per-command help: `bb-browser <cmd> --help` or `bb-browser help <cmd>`.
 
 ### 3. HTTP / REST (for n8n, Make, external services)
 
@@ -80,6 +86,8 @@ Site adapters over HTTP: `GET /v1/sites`, `POST /v1/sites/info {name}`, `POST /v
 5. **Use `--since last_action`** on network/console/errors to get only events since your last interaction. Avoids re-reading the full ring buffer.
 6. **For page visuals**, use `browser_screenshot` — it shows the rendered UI (post-JS, post-CSS, with the user's logged-in state) that fetched HTML can't.
 7. **Diagnose failures with `browser_console` + `browser_errors`** before assuming the automation is broken. Pages often log hints.
+8. **For SPA pages, prefer `open --wait-for '<selector>'`** over `wait <ms>`. Polls until the selector exists or timeout (default 10s, override with `--timeout <ms>`).
+9. **Use `eval --unwrap` to strip `{success, data, result, ...}` envelopes** when you only want the value — strings are emitted unquoted, other shapes as JSON. Combine with `--file <path>` for non-trivial scripts.
 
 ## Site adapters
 

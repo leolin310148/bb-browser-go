@@ -145,6 +145,65 @@ func TestResolveHelpKey(t *testing.T) {
 	}
 }
 
+func TestSuggestCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		wantHead string // first suggestion (the closest); "" means expect no suggestion
+		wantAny  string // additional name we expect to appear somewhere in the output
+	}{
+		{"close typo to open", "opn", "open", ""},
+		{"common typo for snapshot", "snapsho", "snapshot", ""},
+		{"close typo to click", "clic", "click", ""},
+		{"long unrelated returns nothing", "xyzzyplover", "", ""},
+		{"case-insensitive", "OPEN", "open", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := suggestCommands(tc.input, 3)
+			if tc.wantHead == "" {
+				if len(got) != 0 {
+					t.Fatalf("expected no suggestions, got %v", got)
+				}
+				return
+			}
+			if len(got) == 0 || got[0] != tc.wantHead {
+				t.Fatalf("suggestCommands(%q): want first=%q, got %v", tc.input, tc.wantHead, got)
+			}
+		})
+	}
+}
+
+func TestPrintAllHelp(t *testing.T) {
+	out := captureStdout(t, func() { printAllHelp() })
+	for _, want := range []string{
+		"## open",
+		"## eval",
+		"## snapshot",
+		"## tab",
+		"## tab.new",
+		"--unwrap",
+		"--wait-for",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("printAllHelp output missing %q", want)
+		}
+	}
+}
+
+func TestTopLevelHelpMentionsNewFlags(t *testing.T) {
+	out := captureStdout(t, func() { printHelp() })
+	for _, want := range []string{
+		"--wait-for",
+		"--unwrap",
+		"--file",
+		"help --all",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("top-level help missing %q", want)
+		}
+	}
+}
+
 func TestPrintCommandHelpAllCommands(t *testing.T) {
 	// Every registered command renders a non-empty help block with a Usage line.
 	for _, name := range commandNames() {
