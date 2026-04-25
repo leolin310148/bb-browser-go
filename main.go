@@ -105,16 +105,7 @@ func main() {
 		if hasFlag(args, "--new") {
 			req.New = true
 		}
-		if waitFor := getArgValue(args, "--wait-for"); waitFor != "" {
-			req.WaitFor = waitFor
-		}
-		if v := getArgValue(args, "--timeout"); v != "" {
-			ms, err := strconv.Atoi(v)
-			if err != nil || ms < 0 {
-				fatal("--timeout must be a non-negative integer (ms)")
-			}
-			req.TimeoutMs = &ms
-		}
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			if resp.Data != nil {
 				fmt.Printf("Opened: %s (tab: %s)\n", resp.Data.URL, resp.Data.Tab)
@@ -158,6 +149,7 @@ func main() {
 		ref := getRef(cmdArgs)
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionClick, Ref: ref}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Println("Clicked")
 		})
@@ -166,6 +158,7 @@ func main() {
 		ref := getRef(cmdArgs)
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionHover, Ref: ref}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Println("Hovered")
 		})
@@ -178,6 +171,7 @@ func main() {
 		text := strings.Join(cmdArgs[1:], " ")
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionFill, Ref: ref, Text: text}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Printf("Filled with: %s\n", text)
 		})
@@ -190,6 +184,7 @@ func main() {
 		text := strings.Join(cmdArgs[1:], " ")
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionType_, Ref: ref, Text: text}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Printf("Typed: %s\n", text)
 		})
@@ -198,6 +193,7 @@ func main() {
 		ref := getRef(cmdArgs)
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionCheck, Ref: ref}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Println("Checked")
 		})
@@ -206,6 +202,7 @@ func main() {
 		ref := getRef(cmdArgs)
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionUncheck, Ref: ref}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Println("Unchecked")
 		})
@@ -218,6 +215,7 @@ func main() {
 		value := cmdArgs[1]
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionSelect, Ref: ref, Value: value}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Printf("Selected: %s\n", value)
 		})
@@ -245,6 +243,7 @@ func main() {
 		}
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionEval, Script: script}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		printEval(req, jsonOutput, unwrap)
 
 	case "get":
@@ -287,16 +286,19 @@ func main() {
 	case "back":
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionBack}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) { fmt.Println("Back") })
 
 	case "forward":
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionForward}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) { fmt.Println("Forward") })
 
 	case "refresh":
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionRefresh}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) { fmt.Println("Refreshed") })
 
 	case "press":
@@ -305,6 +307,7 @@ func main() {
 		}
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionPress, Key: cmdArgs[0]}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Printf("Pressed: %s\n", cmdArgs[0])
 		})
@@ -322,6 +325,7 @@ func main() {
 		}
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionScroll, Direction: direction, Pixels: &pixels}
 		setTab(req, globalTabID)
+		applyCLIWaitFor(req, args)
 		sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 			fmt.Printf("Scrolled %s %d pixels\n", direction, pixels)
 		})
@@ -1075,6 +1079,23 @@ func setTab(req *protocol.Request, tabID string) {
 	}
 }
 
+// applyCLIWaitFor pulls --wait-for / --timeout out of rawArgs and onto req.
+// Called by every action that benefits from waiting for a post-action DOM
+// change (click, fill, press, ..., open). Read-only commands like snapshot
+// and get don't bother.
+func applyCLIWaitFor(req *protocol.Request, rawArgs []string) {
+	if waitFor := getArgValue(rawArgs, "--wait-for"); waitFor != "" {
+		req.WaitFor = waitFor
+	}
+	if v := getArgValue(rawArgs, "--timeout"); v != "" {
+		ms, err := strconv.Atoi(v)
+		if err != nil || ms < 0 {
+			fatal("--timeout must be a non-negative integer (ms)")
+		}
+		req.TimeoutMs = &ms
+	}
+}
+
 func setSince(req *protocol.Request, since string) {
 	if since == "" {
 		return
@@ -1241,7 +1262,8 @@ Refs & snapshots:
   re-snapshot after navigation or DOM changes.
 
 Tips:
-  - Prefer 'open --wait-for' over 'wait <ms>' for SPA navigation.
+  - Prefer '--wait-for <selector>' over 'wait <ms>' for any SPA-driven
+    DOM change. Works on open, click, fill, eval, and other actions.
   - Use 'eval --unwrap' to skip the {success,data,result,...} envelope.
   - Use '--since last_action' on network/console/errors for incremental reads.
 

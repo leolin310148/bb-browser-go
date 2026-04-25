@@ -44,6 +44,7 @@ Tool categories (29 total): navigation, interaction, observation (includes `brow
 ```bash
 bb-browser open <url>                            # reuses tab with same URL; --new forces fresh
 bb-browser open <url> --wait-for '<selector>'    # block until selector exists (default 10s)
+bb-browser click <ref> --wait-for '.modal'       # --wait-for works on most actions, not just open
 bb-browser snapshot -i -c                        # -i: interactive only, -c: compact
 bb-browser click <ref>
 bb-browser fill <ref> <text>
@@ -86,7 +87,7 @@ Site adapters over HTTP: `GET /v1/sites`, `POST /v1/sites/info {name}`, `POST /v
 5. **Use `--since last_action`** on network/console/errors to get only events since your last interaction. Avoids re-reading the full ring buffer.
 6. **For page visuals**, use `browser_screenshot` — it shows the rendered UI (post-JS, post-CSS, with the user's logged-in state) that fetched HTML can't.
 7. **Diagnose failures with `browser_console` + `browser_errors`** before assuming the automation is broken. Pages often log hints.
-8. **For SPA pages, prefer `open --wait-for '<selector>'`** over `wait <ms>`. Polls until the selector exists or timeout (default 10s, override with `--timeout <ms>`).
+8. **Prefer `--wait-for '<selector>'` over `wait <ms>`** for any DOM change. Works on `open`, `click`, `fill`, `press`, `eval`, etc. — the action runs, then the daemon polls `document.querySelector(...)` until non-null or timeout (default 10s, override with `--timeout <ms>`).
 9. **Use `eval --unwrap` to strip `{success, data, result, ...}` envelopes** when you only want the value — strings are emitted unquoted, other shapes as JSON. Combine with `--file <path>` for non-trivial scripts.
 
 ## Site adapters

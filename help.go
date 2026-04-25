@@ -29,7 +29,12 @@ const globalFlagsNote = `Global flags (available on every command):
   --jq <expr>             Filter JSON output with a jq expression (implies --json)
   --unwrap                For 'eval'/site adapters: print resp.data.result raw
                           (strings unquoted, other shapes as JSON)
-  --since <seq|last_action>  Only include events newer than this (network/console/errors)`
+  --since <seq|last_action>  Only include events newer than this (network/console/errors)
+
+Wait-for flags (open, back, forward, refresh, click, hover, fill, type,
+check, uncheck, select, press, scroll, eval):
+  --wait-for <selector>   Block until document.querySelector(<selector>) is non-null
+  --timeout <ms>          Cap --wait-for (default 10000ms)`
 
 // commandHelp indexes per-command help. Canonical commands are the keys; any
 // subcommand shortcuts ("tab.new", "site.run", ...) are also listed so callers

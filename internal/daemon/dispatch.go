@@ -54,6 +54,19 @@ func applyWaitFor(cdp *CdpConnection, targetID string, req *protocol.Request) er
 	return waitForSelector(cdp, targetID, req.WaitFor, timeout)
 }
 
+// withWaitFor runs applyWaitFor on success and converts a wait-for timeout
+// into a failResp. Use as: `return withWaitFor(req, cdp, target.ID, okResp(...))`.
+// On a non-success input it is a passthrough.
+func withWaitFor(req *protocol.Request, cdp *CdpConnection, targetID string, resp *protocol.Response) *protocol.Response {
+	if !resp.Success || req.WaitFor == "" {
+		return resp
+	}
+	if err := applyWaitFor(cdp, targetID, req); err != nil {
+		return failResp(req.ID, err)
+	}
+	return resp
+}
+
 // waitForSelector polls Runtime.evaluate(document.querySelector(sel)!=null) on
 // 100ms ticks until truthy or timeout. cdp.Evaluate may transiently fail while
 // the navigation tears down the old execution context — those errors are
@@ -534,13 +547,10 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 					s := reused.RecordAction()
 					seq = &s
 				}
-				if err := applyWaitFor(cdp, existing.ID, req); err != nil {
-					return failResp(req.ID, err)
-				}
-				return okResp(req.ID, &protocol.ResponseData{
+				return withWaitFor(req, cdp, existing.ID, okResp(req.ID, &protocol.ResponseData{
 					TabID: existing.ID, URL: existing.URL, Title: existing.Title,
 					Tab: shortID, Seq: seq,
-				})
+				}))
 			}
 		}
 
@@ -564,12 +574,9 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 			s := newTab.RecordAction()
 			seq = &s
 		}
-		if err := applyWaitFor(cdp, created.TargetID, req); err != nil {
-			return failResp(req.ID, err)
-		}
-		return okResp(req.ID, &protocol.ResponseData{
+		return withWaitFor(req, cdp, created.TargetID, okResp(req.ID, &protocol.ResponseData{
 			TabID: created.TargetID, URL: req.URL, Tab: shortID, Seq: seq,
-		})
+		}))
 	}
 
 	target, err := cdp.EnsurePageTarget(tabRef)
@@ -593,27 +600,24 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 		cdp.PageCommand(target.ID, "Page.navigate", map[string]interface{}{"url": req.URL})
 		cdp.BrowserCommand("Target.activateTarget", map[string]interface{}{"targetId": target.ID})
 		tab.Refs = map[string]*protocol.RefInfo{}
-		if err := applyWaitFor(cdp, target.ID, req); err != nil {
-			return failResp(req.ID, err)
-		}
-		return okResp(req.ID, &protocol.ResponseData{
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{
 			URL: req.URL, Title: target.Title, TabID: target.ID, Tab: shortID, Seq: intPtr(seq),
-		})
+		}))
 
 	case protocol.ActionBack:
 		seq := tab.RecordAction()
 		cdp.Evaluate(target.ID, "history.back(); undefined", false)
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionForward:
 		seq := tab.RecordAction()
 		cdp.Evaluate(target.ID, "history.forward(); undefined", false)
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionRefresh:
 		seq := tab.RecordAction()
 		cdp.SessionCommand(target.ID, "Page.reload", map[string]interface{}{"ignoreCache": false})
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionClose:
 		seq := tab.RecordAction()
@@ -666,7 +670,7 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 		if req.Action == protocol.ActionClick {
 			mouseClick(cdp, target.ID, x, y)
 		}
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionFill, protocol.ActionType_:
 		if req.Ref == "" {
@@ -681,7 +685,7 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 		if err := insertTextIntoNode(cdp, target.ID, backendID, req.Text, clearFirst); err != nil {
 			return failResp(req.ID, err)
 		}
-		return okResp(req.ID, &protocol.ResponseData{Value: req.Text, Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Value: req.Text, Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionCheck, protocol.ActionUncheck:
 		if req.Ref == "" {
@@ -702,7 +706,7 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 			"objectId": resolved.Object.ObjectID,
 			"functionDeclaration": fmt.Sprintf(`function() { this.checked = %v; this.dispatchEvent(new Event('input', { bubbles: true })); this.dispatchEvent(new Event('change', { bubbles: true })); }`, desired),
 		})
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionSelect:
 		if req.Ref == "" || req.Value == "" {
@@ -723,7 +727,7 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 			"objectId": resolved.Object.ObjectID,
 			"functionDeclaration": fmt.Sprintf(`function() { this.value = %s; this.dispatchEvent(new Event('input', { bubbles: true })); this.dispatchEvent(new Event('change', { bubbles: true })); }`, string(valueJSON)),
 		})
-		return okResp(req.ID, &protocol.ResponseData{Value: req.Value, Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Value: req.Value, Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionGet:
 		if req.Attribute == "" {
@@ -948,7 +952,7 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 		cdp.SessionCommand(target.ID, "Input.dispatchKeyEvent", map[string]interface{}{
 			"type": "keyUp", "key": req.Key,
 		})
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionScroll:
 		seq := tab.RecordAction()
@@ -970,7 +974,7 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 		cdp.SessionCommand(target.ID, "Input.dispatchMouseEvent", map[string]interface{}{
 			"type": "mouseWheel", "x": 0, "y": 0, "deltaX": deltaX, "deltaY": deltaY,
 		})
-		return okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)})
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{Tab: shortID, Seq: intPtr(seq)}))
 
 	case protocol.ActionWait:
 		ms := 1000
@@ -991,9 +995,9 @@ func DispatchRequest(cdp *CdpConnection, req *protocol.Request) *protocol.Respon
 		}
 		var result interface{}
 		json.Unmarshal(raw, &result)
-		return okResp(req.ID, &protocol.ResponseData{
+		return withWaitFor(req, cdp, target.ID, okResp(req.ID, &protocol.ResponseData{
 			Result: result, Tab: shortID, Seq: intPtr(seq),
-		})
+		}))
 
 	// --- Tab management ---
 	case protocol.ActionTabList:

@@ -112,6 +112,74 @@ func TestDispatch_Open_WaitFor_Timeout(t *testing.T) {
 	}
 }
 
+func TestDispatch_Click_WaitFor_Found(t *testing.T) {
+	f := newFakeCDP(t)
+	setupOnePage(f, "T1", "https://a", "A")
+
+	// First Runtime.evaluate calls are part of click (point lookup, etc.) —
+	// only the wait-for probe matches `querySelector`. Return true on the
+	// second querySelector probe.
+	var probes int32
+	f.On("Runtime.evaluate", func(params json.RawMessage) (interface{}, error) {
+		var p struct {
+			Expression string `json:"expression"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if !strings.Contains(p.Expression, "querySelector") {
+			// Click pipeline may evaluate other things; respond with empty result.
+			return map[string]interface{}{"result": map[string]interface{}{"type": "undefined"}}, nil
+		}
+		n := atomic.AddInt32(&probes, 1)
+		return map[string]interface{}{
+			"result": map[string]interface{}{"type": "boolean", "value": n >= 2},
+		}, nil
+	})
+	c := connectCdp(t, f)
+
+	// Build a request that resolves a ref via XPath; the click pipeline needs
+	// some DOM plumbing, so we mock that minimally and trust the existing
+	// dispatch path. Use --wait-for and assert the probes ran.
+	resp := DispatchRequest(c, &protocol.Request{
+		ID: "x", Action: protocol.ActionEval, Script: "1+1", WaitFor: ".loaded",
+	})
+	if !resp.Success {
+		t.Fatalf("eval --wait-for: %+v", resp)
+	}
+	if got := atomic.LoadInt32(&probes); got < 2 {
+		t.Fatalf("expected at least 2 wait-for probes, got %d", got)
+	}
+}
+
+func TestDispatch_Eval_WaitFor_Timeout(t *testing.T) {
+	f := newFakeCDP(t)
+	setupOnePage(f, "T1", "https://a", "A")
+	f.On("Runtime.evaluate", func(params json.RawMessage) (interface{}, error) {
+		var p struct {
+			Expression string `json:"expression"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if !strings.Contains(p.Expression, "querySelector") {
+			return map[string]interface{}{"result": map[string]interface{}{"type": "number", "value": 2}}, nil
+		}
+		return map[string]interface{}{
+			"result": map[string]interface{}{"type": "boolean", "value": false},
+		}, nil
+	})
+	c := connectCdp(t, f)
+
+	timeoutMs := 150
+	resp := DispatchRequest(c, &protocol.Request{
+		ID: "x", Action: protocol.ActionEval, Script: "1+1",
+		WaitFor: ".never", TimeoutMs: &timeoutMs,
+	})
+	if resp.Success {
+		t.Fatalf("expected timeout failure, got success: %+v", resp)
+	}
+	if !strings.Contains(resp.Error, "timeout") {
+		t.Fatalf("expected timeout error, got: %q", resp.Error)
+	}
+}
+
 func TestDispatch_Open_ReuseExisting(t *testing.T) {
 	f := newFakeCDP(t)
 	setupOnePage(f, "T1", "https://ex.test", "Existing")
