@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/leolin310148/bb-browser-go/internal/protocol"
 )
@@ -29,6 +30,13 @@ type TabState struct {
 
 	// Seq of the last user-initiated action on this tab.
 	LastActionSeq int
+
+	// Wall-clock time of tab registration. Stable after construction.
+	CreatedAt time.Time
+
+	// Unix nanos of the most recent RecordAction call, 0 if none.
+	// Read concurrently by the idle reaper, so use atomic ops via the helpers.
+	lastActionUnixNano atomic.Int64
 
 	// Element refs from the most recent snapshot.
 	Refs map[string]*protocol.RefInfo
@@ -57,6 +65,7 @@ func newTabState(targetID, shortID string, nextSeq func() int) *TabState {
 		JSErrors:        NewRingBuffer[protocol.JSErrorInfo](errorsCapacity),
 		Refs:            make(map[string]*protocol.RefInfo),
 		nextSeq:         nextSeq,
+		CreatedAt:       time.Now(),
 	}
 }
 
@@ -64,7 +73,17 @@ func newTabState(targetID, shortID string, nextSeq func() int) *TabState {
 func (ts *TabState) RecordAction() int {
 	seq := ts.nextSeq()
 	ts.LastActionSeq = seq
+	ts.lastActionUnixNano.Store(time.Now().UnixNano())
 	return seq
+}
+
+// IdleSince returns the time of the most recent action, or CreatedAt if none.
+// Used by the idle-tab reaper.
+func (ts *TabState) IdleSince() time.Time {
+	if n := ts.lastActionUnixNano.Load(); n != 0 {
+		return time.Unix(0, n)
+	}
+	return ts.CreatedAt
 }
 
 // AddNetworkRequest adds a new network request event.

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/leolin310148/bb-browser-go/internal/client"
+	"github.com/leolin310148/bb-browser-go/internal/config"
 	"github.com/leolin310148/bb-browser-go/internal/daemon"
 	"github.com/leolin310148/bb-browser-go/internal/jq"
 	mcpserver "github.com/leolin310148/bb-browser-go/internal/mcp"
@@ -37,7 +38,7 @@ func main() {
 	globalSince := getArgValue(args, "--since")
 
 	// Strip global flags from args for command parsing
-	cleanArgs := stripFlags(args, []string{"--tab", "--jq", "--port", "--since", "--host", "--token", "--cdp-host", "--cdp-port"}, []string{"--json", "--help", "--version", "--force", "--check"})
+	cleanArgs := stripFlags(args, []string{"--tab", "--jq", "--port", "--since", "--host", "--token", "--cdp-host", "--cdp-port", "--idle-tab-timeout"}, []string{"--json", "--help", "--version", "--force", "--check"})
 
 	if len(cleanArgs) == 0 {
 		printHelp()
@@ -629,6 +630,30 @@ func handleFetch(cmdArgs []string, jsonOutput bool, globalTabID string, rawArgs 
 	})
 }
 
+// resolveIdleTabTimeout returns the idle-tab-close threshold in minutes.
+// Precedence: --idle-tab-timeout flag > BB_BROWSER_TAB_IDLE_TIMEOUT env >
+// config.DefaultIdleTabCloseMinutes. 0 disables the reaper. Negative values
+// are clamped to 0. Non-numeric inputs fall back to the next source.
+func resolveIdleTabTimeout(rawArgs []string) int {
+	if v := getArgValue(rawArgs, "--idle-tab-timeout"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			if n < 0 {
+				n = 0
+			}
+			return n
+		}
+	}
+	if v := os.Getenv("BB_BROWSER_TAB_IDLE_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			if n < 0 {
+				n = 0
+			}
+			return n
+		}
+	}
+	return config.DefaultIdleTabCloseMinutes
+}
+
 // --- Daemon handling ---
 
 func handleDaemon(cmdArgs []string, rawArgs []string) {
@@ -699,11 +724,12 @@ func startDaemonForeground(rawArgs []string) {
 	token := hex.EncodeToString(tokenBytes)
 
 	srv := daemon.NewServer(daemon.ServerOptions{
-		Host:    host,
-		Port:    port,
-		Token:   token,
-		CDPHost: cdpHost,
-		CDPPort: cdpPort,
+		Host:                host,
+		Port:                port,
+		Token:               token,
+		CDPHost:             cdpHost,
+		CDPPort:             cdpPort,
+		IdleTabCloseMinutes: resolveIdleTabTimeout(rawArgs),
 	})
 
 	if err := srv.Run(); err != nil {
@@ -779,11 +805,12 @@ func handleServer(cmdArgs []string, rawArgs []string) {
 	}
 
 	srv := daemon.NewServer(daemon.ServerOptions{
-		Host:    host,
-		Port:    port,
-		Token:   token,
-		CDPHost: cdpHost,
-		CDPPort: cdpPort,
+		Host:                host,
+		Port:                port,
+		Token:               token,
+		CDPHost:             cdpHost,
+		CDPPort:             cdpPort,
+		IdleTabCloseMinutes: resolveIdleTabTimeout(rawArgs),
 	})
 
 	fmt.Fprintf(os.Stderr, "bb-browser server starting on %s:%d\n", host, port)

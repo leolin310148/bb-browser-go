@@ -326,6 +326,8 @@ var commandHelp = map[string]cmdHelp{
 			"  --port <p>             Listen port (default 19824)",
 			"  --cdp-host <h>         Chrome DevTools host (default 127.0.0.1)",
 			"  --cdp-port <p>         Chrome DevTools port (default 19825)",
+			"  --idle-tab-timeout <m> Auto-close tabs idle for <m> minutes",
+			"                         (default 30, 0=disable; env BB_BROWSER_TAB_IDLE_TIMEOUT)",
 		},
 		Notes: "For a remote-accessible server with auth, use 'bb-browser server' instead.",
 	},
@@ -342,6 +344,8 @@ var commandHelp = map[string]cmdHelp{
 			"                         (env BB_BROWSER_TOKEN)",
 			"  --cdp-host <h>         Chrome DevTools host (default 127.0.0.1)",
 			"  --cdp-port <p>         Chrome DevTools port (default 19825)",
+			"  --idle-tab-timeout <m> Auto-close tabs idle for <m> minutes",
+			"                         (default 30, 0=disable; env BB_BROWSER_TAB_IDLE_TIMEOUT)",
 		},
 		Examples: []string{
 			"  bb-browser server --host 127.0.0.1",

@@ -11,6 +11,10 @@ const (
 	DaemonHost     = "127.0.0.1"
 	CommandTimeout = 30 // seconds
 	DefaultCDPPort = 19825
+
+	// DefaultIdleTabCloseMinutes is how long a tab may sit without a
+	// user-initiated action before the daemon auto-closes it. 0 disables.
+	DefaultIdleTabCloseMinutes = 30
 )
 
 // HomeDir returns the bb-browser home directory (~/.bb-browser).

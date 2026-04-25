@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/leolin310148/bb-browser-go/internal/config"
 	"github.com/leolin310148/bb-browser-go/internal/protocol"
 )
 
@@ -148,5 +149,47 @@ func TestSetSince(t *testing.T) {
 	setSince(req, "not-numeric")
 	if req.Since != nil {
 		t.Errorf("garbage should be ignored: %v", req.Since)
+	}
+}
+
+func TestResolveIdleTabTimeout(t *testing.T) {
+	// Default when neither flag nor env present.
+	t.Setenv("BB_BROWSER_TAB_IDLE_TIMEOUT", "")
+	if got := resolveIdleTabTimeout(nil); got != config.DefaultIdleTabCloseMinutes {
+		t.Errorf("default: got %d, want %d", got, config.DefaultIdleTabCloseMinutes)
+	}
+
+	// Env wins over default.
+	t.Setenv("BB_BROWSER_TAB_IDLE_TIMEOUT", "15")
+	if got := resolveIdleTabTimeout(nil); got != 15 {
+		t.Errorf("env: got %d, want 15", got)
+	}
+
+	// Flag wins over env.
+	if got := resolveIdleTabTimeout([]string{"--idle-tab-timeout", "5"}); got != 5 {
+		t.Errorf("flag: got %d, want 5", got)
+	}
+
+	// 0 disables.
+	t.Setenv("BB_BROWSER_TAB_IDLE_TIMEOUT", "0")
+	if got := resolveIdleTabTimeout(nil); got != 0 {
+		t.Errorf("env=0: got %d, want 0", got)
+	}
+
+	// Negative clamps to 0.
+	if got := resolveIdleTabTimeout([]string{"--idle-tab-timeout", "-7"}); got != 0 {
+		t.Errorf("negative flag: got %d, want 0", got)
+	}
+
+	// Garbage flag falls through to env.
+	t.Setenv("BB_BROWSER_TAB_IDLE_TIMEOUT", "12")
+	if got := resolveIdleTabTimeout([]string{"--idle-tab-timeout", "abc"}); got != 12 {
+		t.Errorf("garbage flag: got %d, want env=12", got)
+	}
+
+	// Garbage env falls through to default.
+	t.Setenv("BB_BROWSER_TAB_IDLE_TIMEOUT", "abc")
+	if got := resolveIdleTabTimeout(nil); got != config.DefaultIdleTabCloseMinutes {
+		t.Errorf("garbage env: got %d, want %d", got, config.DefaultIdleTabCloseMinutes)
 	}
 }

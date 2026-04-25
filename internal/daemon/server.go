@@ -25,15 +25,20 @@ type ServerOptions struct {
 	Token   string
 	CDPHost string
 	CDPPort int
+
+	// IdleTabCloseMinutes auto-closes tabs after this many minutes without a
+	// user-initiated action. 0 disables. Negative values are clamped to 0.
+	IdleTabCloseMinutes int
 }
 
 // Server is the bb-browser daemon HTTP server.
 type Server struct {
-	opts      ServerOptions
-	cdp       *CdpConnection
-	httpSrv   *http.Server
-	startTime time.Time
-	mu        sync.Mutex
+	opts         ServerOptions
+	cdp          *CdpConnection
+	httpSrv      *http.Server
+	startTime    time.Time
+	mu           sync.Mutex
+	cancelReaper context.CancelFunc
 }
 
 // NewServer creates a daemon server.
@@ -92,6 +97,23 @@ func (s *Server) Run() error {
 		}
 	}()
 
+	// Idle-tab reaper. Disabled when IdleTabCloseMinutes <= 0.
+	reaperCtx, cancelReaper := context.WithCancel(context.Background())
+	s.cancelReaper = cancelReaper
+	if s.opts.IdleTabCloseMinutes > 0 {
+		threshold := time.Duration(s.opts.IdleTabCloseMinutes) * time.Minute
+		fmt.Fprintf(os.Stderr, "bb-browser idle-tab reaper enabled (threshold=%s)\n", threshold)
+		go runIdleTabReaper(
+			reaperCtx,
+			s.cdp.TabManager,
+			s.cdp,
+			threshold,
+			reaperTickInterval,
+			func() string { return s.cdp.CurrentTargetID },
+			time.Now,
+		)
+	}
+
 	// Write daemon.json only after the listener is held.
 	info := protocol.DaemonInfo{
 		PID:   os.Getpid(),
@@ -127,6 +149,9 @@ func (s *Server) Run() error {
 func (s *Server) shutdown() error {
 	// Clean up daemon.json
 	os.Remove(config.DaemonJSONPath())
+	if s.cancelReaper != nil {
+		s.cancelReaper()
+	}
 	s.cdp.Disconnect()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
