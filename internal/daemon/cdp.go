@@ -171,11 +171,16 @@ func (c *CdpConnection) WaitUntilReady(timeout time.Duration) error {
 }
 
 // Disconnect closes the CDP connection.
+//
+// Note: c.socket is intentionally NOT cleared. Setting it to nil here would
+// race with readLoop / Browser- / SessionCommand reads on c.socket. Closing
+// the socket is enough — Read/Write return errors and the readLoop exits via
+// its err branch. Code that needs to know whether the connection is live
+// reads c.connected (atomic) instead of nil-checking c.socket.
 func (c *CdpConnection) Disconnect() {
 	c.connected.Store(false)
 	if c.socket != nil {
 		c.socket.Close()
-		c.socket = nil
 	}
 	// Reject all pending
 	c.pending.Range(func(key, value interface{}) bool {
@@ -188,7 +193,7 @@ func (c *CdpConnection) Disconnect() {
 
 func (c *CdpConnection) readLoop() {
 	for {
-		if c.socket == nil {
+		if !c.connected.Load() {
 			return
 		}
 		_, raw, err := c.socket.ReadMessage()
@@ -735,7 +740,7 @@ func (c *CdpConnection) HasSession(targetID string) bool {
 
 // BrowserCommand sends a browser-level CDP command and returns the result.
 func (c *CdpConnection) BrowserCommand(method string, params interface{}) (json.RawMessage, error) {
-	if c.socket == nil {
+	if !c.connected.Load() {
 		return nil, fmt.Errorf("CDP not connected")
 	}
 
@@ -777,7 +782,7 @@ func (c *CdpConnection) BrowserCommand(method string, params interface{}) (json.
 
 // SessionCommand sends a session-level CDP command (flat protocol).
 func (c *CdpConnection) SessionCommand(targetID, method string, params interface{}) (json.RawMessage, error) {
-	if c.socket == nil {
+	if !c.connected.Load() {
 		return nil, fmt.Errorf("CDP not connected")
 	}
 
