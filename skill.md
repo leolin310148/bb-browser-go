@@ -46,6 +46,7 @@ bb-browser open <url>                            # reuses tab with same URL; --n
 bb-browser open <url> --wait-for '<selector>'    # block until selector exists (default 10s)
 bb-browser click <ref> --wait-for '.modal'       # --wait-for works on most actions, not just open
 bb-browser snapshot -i -c                        # -i: interactive only, -c: compact
+bb-browser snapshot --text-only                  # reader-mode plain text (no refs); good for LLM context
 bb-browser click <ref>
 bb-browser fill <ref> <text>
 bb-browser press <key>

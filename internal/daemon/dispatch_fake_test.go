@@ -596,6 +596,48 @@ type cdpErr struct{ msg string }
 
 func (e *cdpErr) Error() string { return e.msg }
 
+func TestDispatch_Snapshot_TextOnly(t *testing.T) {
+	f := newFakeCDP(t)
+	setupOnePage(f, "T1", "https://a", "A")
+	f.On("Runtime.evaluate", func(params json.RawMessage) (interface{}, error) {
+		var p struct{ Expression string `json:"expression"` }
+		json.Unmarshal(params, &p)
+		if !strings.Contains(p.Expression, "stripSelectors") {
+			t.Fatalf("expected text-snapshot script, got: %s", p.Expression)
+		}
+		return map[string]interface{}{"result": map[string]interface{}{
+			"value": map[string]interface{}{
+				"title": "Hello",
+				"url":   "https://a/",
+				"text":  "Some body content",
+			},
+		}}, nil
+	})
+	c := connectCdp(t, f)
+
+	resp := DispatchRequest(c, &protocol.Request{
+		ID:     "x",
+		Action: protocol.ActionSnapshot,
+		Mode:   "text",
+	})
+	if !resp.Success {
+		t.Fatalf("snapshot --text-only: %+v", resp)
+	}
+	if resp.Data.SnapshotData == nil {
+		t.Fatalf("missing snapshot data")
+	}
+	got := resp.Data.SnapshotData.Snapshot
+	if !strings.Contains(got, "# Hello") {
+		t.Errorf("expected title line, got %q", got)
+	}
+	if !strings.Contains(got, "Some body content") {
+		t.Errorf("expected body text, got %q", got)
+	}
+	if len(resp.Data.SnapshotData.Refs) != 0 {
+		t.Errorf("text mode should not produce refs, got %d", len(resp.Data.SnapshotData.Refs))
+	}
+}
+
 func TestDispatch_Network_Query(t *testing.T) {
 	f := newFakeCDP(t)
 	setupOnePage(f, "T1", "https://a", "A")

@@ -88,6 +88,11 @@ type Request struct {
 	ErrorsCommand  string `json:"errorsCommand,omitempty"`
 	TraceCommand   string `json:"traceCommand,omitempty"`
 
+	// Mode requests an alternate output format from a command. For 'snapshot',
+	// "text" returns a plain-text reader-mode dump of the page in
+	// SnapshotData.Snapshot (Refs/Elements are empty).
+	Mode string `json:"mode,omitempty"`
+
 	// Observation filters
 	Filter   string      `json:"filter,omitempty"`
 	WithBody bool        `json:"withBody,omitempty"`

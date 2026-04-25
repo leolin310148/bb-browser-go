@@ -93,6 +93,17 @@ func waitForSelector(cdp *CdpConnection, targetID, selector string, timeout time
 // --- Snapshot ---
 
 func buildSnapshot(cdp *CdpConnection, targetID string, tab *TabState, req *protocol.Request) (*protocol.SnapshotData, error) {
+	if req.Mode == "text" {
+		snap, err := buildTextSnapshot(cdp, targetID)
+		if err != nil {
+			return nil, err
+		}
+		// Text mode does not establish refs; clear any stale ones from a
+		// previous tree-mode snapshot so '<text-only>' followed by 'click ref'
+		// fails fast with a clear error instead of acting on a stale handle.
+		tab.Refs = map[string]*protocol.RefInfo{}
+		return snap, nil
+	}
 	script := loadBuildDomTreeScript()
 	buildArgs := `{"showHighlightElements":true,"focusHighlightIndex":-1,"viewportExpansion":-1,"debugMode":false,"startId":0,"startHighlightIndex":0}`
 	expression := fmt.Sprintf(`(() => { %s; const fn = globalThis.buildDomTree ?? (typeof window !== 'undefined' ? window.buildDomTree : undefined); if (typeof fn !== 'function') { throw new Error('buildDomTree is not available after script injection'); } return fn(%s); })()`, script, buildArgs)

@@ -31,6 +31,7 @@ Every response carries a short `tab` id (e.g. `ab1c`); pass it as `--tab <id>` (
 bb-browser open <url>                              # reuses tab with same URL; --new forces fresh
 bb-browser open <url> --wait-for '<selector>' [--timeout <ms>]  # block until selector found (10s default)
 bb-browser snapshot [-i] [-c] [-d N]               # accessibility tree with refs
+bb-browser snapshot --text-only                    # reader-mode plain text (no refs)
 bb-browser click <ref>                             # refs come from snapshot
 bb-browser fill <ref> <text>                       # clear + fill
 bb-browser type <ref> <text>                       # append

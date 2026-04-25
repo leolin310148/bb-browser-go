@@ -114,6 +114,9 @@ func main() {
 
 	case "snapshot":
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionSnapshot}
+		if hasFlag(args, "--text-only") || hasFlag(args, "--text") {
+			req.Mode = "text"
+		}
 		if hasFlag(args, "-i") || hasFlag(args, "--interactive") {
 			req.Interactive = true
 		}
@@ -1196,7 +1199,8 @@ func stripFlags(args []string, valueFlags, boolFlags []string) []string {
 		}
 		// Also strip short flags that have already been handled
 		if a == "-i" || a == "-c" || a == "--interactive" || a == "--compact" ||
-			a == "--with-body" || a == "--clear" || a == "--json" || a == "--new" {
+			a == "--with-body" || a == "--clear" || a == "--json" || a == "--new" ||
+			a == "--text-only" || a == "--text" {
 			continue
 		}
 		if a == "-d" || a == "--depth" || a == "-s" || a == "--selector" ||
@@ -1244,7 +1248,9 @@ Interaction:
                                 consts, repeatable)
 
 Observation:
-  snapshot [-i] [-c] [-d N] [-s <sel>]   Get accessibility tree
+  snapshot [-i] [-c] [-d N] [-s <sel>] [--text-only]
+                                Get accessibility tree (or reader-mode
+                                plain text with --text-only)
   screenshot [path]             Take screenshot
   get <attribute> [ref]         Get element attribute
   network [requests|clear]      Network traffic

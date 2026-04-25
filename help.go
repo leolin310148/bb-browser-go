@@ -168,19 +168,24 @@ var commandHelp = map[string]cmdHelp{
 	// --- Observation ---
 	"snapshot": {
 		Summary: "Emit the accessibility tree of the page with [ref=N] handles.",
-		Usage:   "bb-browser snapshot [-i] [-c] [-d N] [-s <selector>] [--tab <id>]",
+		Usage:   "bb-browser snapshot [-i] [-c] [-d N] [-s <selector>] [--text-only] [--tab <id>]",
 		Flags: []string{
 			"  -i, --interactive   Include only clickable/fillable elements (much shorter)",
 			"  -c, --compact       Collapse whitespace and redundant nesting",
 			"  -d, --depth N       Limit tree depth to N levels",
 			"  -s, --selector CSS  Snapshot only the subtree matching a CSS selector",
+			"  --text-only         Reader-mode plain text (no refs, no tree); good for LLM context",
 		},
 		Examples: []string{
 			"  bb-browser snapshot -i -c",
 			"  bb-browser snapshot -d 4 -s '#app'",
+			"  bb-browser snapshot --text-only",
 		},
 		Notes: "Always snapshot before calling interaction commands — refs are regenerated " +
-			"on every snapshot and go stale across navigations or DOM updates.",
+			"on every snapshot and go stale across navigations or DOM updates.\n" +
+			"--text-only strips nav/header/footer/script/style and returns the visible text " +
+			"(plus title and URL); refs are NOT produced, so follow with a normal snapshot " +
+			"before any click/fill/etc.",
 	},
 	"screenshot": {
 		Summary: "Capture a PNG of the current page.",
