@@ -475,6 +475,10 @@ func main() {
 		out, _ := json.MarshalIndent(pretty, "", "  ")
 		fmt.Println(string(out))
 
+	// --- Doctor ---
+	case "doctor":
+		runDoctor(jsonOutput)
+
 	// --- Site ---
 	case "site":
 		handleSite(cmdArgs, jsonOutput, globalTabID)
@@ -1263,6 +1267,7 @@ Site Adapters:
 Utility:
   fetch <url>                   Authenticated fetch via page session
   status                        Daemon status
+  doctor [--json]               Run diagnostic checks on the full stack
   daemon [shutdown]             Start/stop the local daemon
   server --host H --port P --token T [shutdown]
                                 Start remote-accessible HTTP server

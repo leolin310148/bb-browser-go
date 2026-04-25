@@ -53,6 +53,7 @@ bb-browser trace start|stop|status
 bb-browser site list|search|info|run|update       # site adapters
 bb-browser <platform>/<adapter> [args]            # shorthand for "site run"
 bb-browser status | daemon [shutdown]
+bb-browser doctor [--json]                         # diagnose CLI/daemon/CDP/tabs end-to-end
 bb-browser server --host 0.0.0.0 --token ... [shutdown]
 bb-browser help [command [sub]]                    # per-command help
 bb-browser <command> --help                        # same, inline form

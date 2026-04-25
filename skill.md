@@ -101,6 +101,7 @@ Pull community adapters: `bb-browser site update` (CLI only — triggers a git p
 
 - "Chrome not connected" → the daemon is up but CDP is down. Start Chrome, or let the daemon auto-launch: check `bb-browser status`.
 - "a daemon may already be running" → `bb-browser daemon status`, `bb-browser daemon shutdown` if stale.
+- When unsure where the stack is broken, run `bb-browser doctor` — it walks through home dir, daemon JSON, daemon process, daemon HTTP, CDP attach, tabs, and direct CDP discovery, and reports the first failing layer.
 - Element ref not found → page changed between snapshot and action. Re-snapshot.
 - Remote `server` refuses to start → non-loopback bind without `--token`. Set `BB_BROWSER_TOKEN` or pass `--token`.
 

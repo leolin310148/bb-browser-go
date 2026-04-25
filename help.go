@@ -340,6 +340,13 @@ var commandHelp = map[string]cmdHelp{
 		Summary: "Print the daemon status as JSON (uptime, tabs, CDP connection).",
 		Usage:   "bb-browser status",
 	},
+	"doctor": {
+		Summary: "Run end-to-end diagnostics on the CLI/daemon/browser stack.",
+		Usage:   "bb-browser doctor [--json]",
+		Notes: "Checks: home directory, daemon.json, daemon process & HTTP, CDP connection,\n" +
+			"open tabs, and direct CDP discovery. Exits non-zero if any check fails;\n" +
+			"warnings (e.g. daemon not started) do not fail. Use --json for machine output.",
+	},
 	"daemon": {
 		Summary: "Start or control the local daemon (loopback only).",
 		Usage:   "bb-browser daemon [status|shutdown|stop] [--host H --port P --cdp-host H --cdp-port P]",
