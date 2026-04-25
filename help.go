@@ -137,22 +137,26 @@ var commandHelp = map[string]cmdHelp{
 	},
 	"eval": {
 		Summary: "Run JavaScript in the page context and return the JSON result.",
-		Usage:   "bb-browser eval <script...> [--file <path>] [--unwrap] [--no-auto-await] [--tab <id>]",
+		Usage:   "bb-browser eval <script...> [--file <path>] [--unwrap] [--no-auto-await] [--json-arg name=value]... [--tab <id>]",
 		Flags: []string{
-			"  --file <path>      Read the script from a file instead of inline args",
-			"  --unwrap           Print the result raw (strings unquoted, otherwise JSON)",
-			"  --no-auto-await    Disable the auto-wrap of top-level `await` in an async IIFE",
+			"  --file <path>            Read the script from a file instead of inline args",
+			"  --unwrap                 Print the result raw (strings unquoted, otherwise JSON)",
+			"  --no-auto-await          Disable the auto-wrap of top-level `await` in an async IIFE",
+			"  --json-arg name=value    Inject a JSON value as a top-level `const` (repeatable)",
 		},
 		Examples: []string{
 			"  bb-browser eval 'document.title'",
 			"  bb-browser eval --unwrap 'document.title'",
 			"  bb-browser eval 'await fetch(\"/api/me\").then(r=>r.json())'",
 			"  bb-browser eval --file ./extract.js",
+			"  bb-browser eval --file ./greet.js --json-arg user='{\"id\":7}' --json-arg n=3",
 		},
 		Notes: "All remaining args are joined with spaces and evaluated as one expression.\n" +
 			"By default, scripts that contain a top-level `await` are auto-wrapped in\n" +
 			"`(async () => { return (<script>) })()` so the resolved value is returned\n" +
 			"instead of `[object Promise]`. Use --no-auto-await to disable.\n" +
+			"--json-arg may be repeated; each value is parsed as JSON and prepended as\n" +
+			"`const NAME = VALUE;` so --file scripts can read CLI inputs without templating.\n" +
 			"For authenticated HTTP calls prefer 'bb-browser fetch'.",
 	},
 	"wait": {

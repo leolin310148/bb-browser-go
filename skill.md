@@ -52,6 +52,7 @@ bb-browser press <key>
 bb-browser eval "<js>"                           # JS in page context → JSON
 bb-browser eval --unwrap "document.title"        # print result raw (strings unquoted)
 bb-browser eval --file ./extract.js              # read script from file
+bb-browser eval --file ./greet.js --json-arg user='{"id":7}' --json-arg n=3   # inject JSON args as top-level consts
 bb-browser eval "await fetch('/api/me').then(r=>r.json())"  # top-level await auto-wraps
 bb-browser get <url|title|text|href|value> [ref]
 bb-browser screenshot                            # base64 PNG

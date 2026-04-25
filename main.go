@@ -40,7 +40,7 @@ func main() {
 	globalSince := getArgValue(args, "--since")
 
 	// Strip global flags from args for command parsing
-	cleanArgs := stripFlags(args, []string{"--tab", "--jq", "--port", "--since", "--host", "--token", "--cdp-host", "--cdp-port", "--idle-tab-timeout", "--file", "--wait-for", "--timeout"}, []string{"--json", "--help", "--version", "--force", "--check", "--unwrap", "--no-auto-await"})
+	cleanArgs := stripFlags(args, []string{"--tab", "--jq", "--port", "--since", "--host", "--token", "--cdp-host", "--cdp-port", "--idle-tab-timeout", "--file", "--wait-for", "--timeout", "--json-arg"}, []string{"--json", "--help", "--version", "--force", "--check", "--unwrap", "--no-auto-await"})
 
 	if len(cleanArgs) == 0 {
 		printHelp()
@@ -240,6 +240,13 @@ func main() {
 		}
 		if !hasFlag(args, "--no-auto-await") {
 			script = jseval.AutoWrapAwait(script)
+		}
+		jsonArgs, err := jseval.ParseJSONArgs(getAllArgValues(args, "--json-arg"))
+		if err != nil {
+			fatal(err.Error())
+		}
+		if prefix := jseval.PrefixJSONArgs(jsonArgs); prefix != "" {
+			script = prefix + script
 		}
 		req := &protocol.Request{ID: newID(), Action: protocol.ActionEval, Script: script}
 		setTab(req, globalTabID)
@@ -1147,6 +1154,18 @@ func getArgValue(args []string, flag string) string {
 	return ""
 }
 
+// getAllArgValues collects every value of a repeatable flag, preserving the
+// order they appeared on the command line.
+func getAllArgValues(args []string, flag string) []string {
+	var out []string
+	for i, a := range args {
+		if a == flag && i+1 < len(args) {
+			out = append(out, args[i+1])
+		}
+	}
+	return out
+}
+
 func stripFlags(args []string, valueFlags, boolFlags []string) []string {
 	valueFlagSet := make(map[string]bool)
 	for _, f := range valueFlags {
@@ -1213,10 +1232,12 @@ Interaction:
   select <ref> <value>          Select option
   press <key>                   Press key (Enter, Tab, ArrowDown, ...)
   scroll <direction> [pixels]   Scroll page
-  eval <script> [--unwrap] [--file <path>] [--no-auto-await]
+  eval <script> [--unwrap] [--file <path>] [--no-auto-await] [--json-arg name=value]...
                                 Execute JavaScript (top-level await
                                 auto-wraps in async IIFE; --unwrap prints
-                                the result raw; --file reads from disk)
+                                the result raw; --file reads from disk;
+                                --json-arg injects JSON values as top-level
+                                consts, repeatable)
 
 Observation:
   snapshot [-i] [-c] [-d N] [-s <sel>]   Get accessibility tree

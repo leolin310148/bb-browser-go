@@ -38,6 +38,7 @@ bb-browser press <key>                             # Enter, Tab, ArrowDown, Esca
 bb-browser eval <script>                           # JS in page context, returns JSON
 bb-browser eval --unwrap <script>                  # print result raw (strings unquoted)
 bb-browser eval --file <path>                      # read script from disk
+bb-browser eval --file ./x.js --json-arg user='{"id":7}' --json-arg n=3   # inject JSON args as top-level consts
 bb-browser eval "await fetch('/x').then(...)"      # top-level await auto-wraps in async IIFE
 bb-browser screenshot                              # base64 PNG in JSON
 bb-browser get <url|title|text|href|value|class> [ref]
