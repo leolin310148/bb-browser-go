@@ -44,6 +44,7 @@ bb-browser eval "await fetch('/x').then(...)"      # top-level await auto-wraps 
 bb-browser screenshot                              # base64 PNG in JSON
 bb-browser get <url|title|text|href|value|class> [ref]
 bb-browser network [requests|clear] [--filter] [--method] [--status] [--with-body]
+bb-browser network requests --tail [--interval ms]   # live stream of new requests (Ctrl+C to stop)
 bb-browser console [--clear] [--filter]
 bb-browser errors [--clear] [--filter]
 bb-browser fetch <url> [--method POST]             # authenticated HTTP via page

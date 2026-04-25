@@ -58,6 +58,7 @@ bb-browser eval "await fetch('/api/me').then(r=>r.json())"  # top-level await au
 bb-browser get <url|title|text|href|value> [ref]
 bb-browser screenshot                            # base64 PNG
 bb-browser network requests --since last_action
+bb-browser network requests --tail --filter /api/    # live stream until Ctrl+C
 bb-browser console --filter error
 bb-browser fetch <url>                           # authenticated HTTP via page session
 bb-browser tab                                   # list tabs

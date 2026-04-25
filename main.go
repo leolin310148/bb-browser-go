@@ -40,7 +40,7 @@ func main() {
 	globalSince := getArgValue(args, "--since")
 
 	// Strip global flags from args for command parsing
-	cleanArgs := stripFlags(args, []string{"--tab", "--jq", "--port", "--since", "--host", "--token", "--cdp-host", "--cdp-port", "--idle-tab-timeout", "--file", "--wait-for", "--timeout", "--json-arg"}, []string{"--json", "--help", "--version", "--force", "--check", "--unwrap", "--no-auto-await"})
+	cleanArgs := stripFlags(args, []string{"--tab", "--jq", "--port", "--since", "--host", "--token", "--cdp-host", "--cdp-port", "--idle-tab-timeout", "--file", "--wait-for", "--timeout", "--json-arg", "--interval"}, []string{"--json", "--help", "--version", "--force", "--check", "--unwrap", "--no-auto-await", "--tail"})
 
 	if len(cleanArgs) == 0 {
 		printHelp()
@@ -629,6 +629,12 @@ func handleNetwork(cmdArgs []string, jsonOutput bool, globalTabID, globalSince s
 	}
 
 	setTab(req, globalTabID)
+
+	if subCmd == "requests" && hasFlag(rawArgs, "--tail") {
+		runTail(req, jsonOutput, parseTailInterval(rawArgs), emitNetworkTail)
+		return
+	}
+
 	sendAndPrint(req, jsonOutput, func(resp *protocol.Response) {
 		if resp.Data != nil && len(resp.Data.NetworkRequests) > 0 {
 			for _, nr := range resp.Data.NetworkRequests {
@@ -1253,7 +1259,9 @@ Observation:
                                 plain text with --text-only)
   screenshot [path]             Take screenshot
   get <attribute> [ref]         Get element attribute
-  network [requests|clear]      Network traffic
+  network [requests|clear] [--tail]
+                                Network traffic; --tail streams new
+                                requests live (Ctrl+C to stop)
   console [--clear]             Console messages
   errors [--clear]              JavaScript errors
   trace [start|stop|status]     Record user actions

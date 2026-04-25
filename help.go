@@ -212,21 +212,28 @@ var commandHelp = map[string]cmdHelp{
 		Notes: refNote,
 	},
 	"network": {
-		Summary: "List or clear network requests captured for the current tab.",
-		Usage:   "bb-browser network [requests|clear] [flags]",
+		Summary: "List, clear, or live-tail network requests captured for the current tab.",
+		Usage:   "bb-browser network [requests|clear] [--tail] [--interval <ms>] [flags]",
 		Flags: []string{
 			"  --filter <substr>    Only requests whose URL contains <substr>",
 			"  --method <M>         Only requests with HTTP method M (GET, POST, ...)",
 			"  --status <code>      Only requests whose response status matches <code>",
 			"  --with-body          Include response bodies (heavier payload)",
 			"  --since <seq|last_action>   Only events newer than this checkpoint",
+			"  --tail               Stream new requests as they arrive (Ctrl+C to stop)",
+			"  --interval <ms>      Polling interval in --tail mode (default 500)",
 		},
 		Examples: []string{
 			"  bb-browser network",
 			"  bb-browser network requests --filter /api/ --method POST",
 			"  bb-browser network requests --since last_action",
+			"  bb-browser network requests --tail --filter /api/",
+			"  bb-browser network --tail --json | jq -c 'select(.status>=400)'",
 			"  bb-browser network clear",
 		},
+		Notes: "--tail polls the daemon every --interval ms, advancing the cursor so each\n" +
+			"request is printed at most once. Combine with --json for JSONL output suitable\n" +
+			"for piping into jq -c, or with --filter/--method/--status to narrow the stream.",
 	},
 	"console": {
 		Summary: "Read or clear captured console messages.",
